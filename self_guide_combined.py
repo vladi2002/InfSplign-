@@ -16,7 +16,7 @@ from torch.nn.functional import mse_loss
 from skimage.filters import threshold_otsu
 from scipy import ndimage
 
-from self_guidance import plot_attention_map
+# from self_guidance import plot_attention_map
 
 
 class SelfGuidanceEdits:

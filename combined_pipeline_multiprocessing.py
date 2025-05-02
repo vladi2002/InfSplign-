@@ -2,10 +2,7 @@ import os
 
 from split_visor_data import split_visor_prompts
 
-# not needed since bashrc has them -> should be don ebefore importing anything from transformers or diffusers
-# os.environ["TRANSFORMERS_CACHE"] = "/tudelft.net/staff-umbrella/StudentsCVlab/vchatalbasheva/hf_cache"
-# |-> will be deprecated - not needed
-os.environ["HF_HOME"] = "/tudelft.net/staff-umbrella/StudentsCVlab/vchatalbasheva/hf_cache"
+# os.environ["HF_HOME"] = "/tudelft.net/staff-umbrella/StudentsCVlab/vchatalbasheva/hf_cache"
 
 import argparse
 import json
