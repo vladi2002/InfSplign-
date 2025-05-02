@@ -1,0 +1,22 @@
+diffusers
+transformers
+tabulate
+pillow
+inflect
+numpy
+matplotlib
+scipy
+fastcore
+ipython
+spacy
+scikit-image
+
+# T2I-CompBench (cluster)
+# conda install -c conda-forge gcc_linux-64=9 gxx_linux-64=9
+# export CC=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-cc
+# export CXX=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-c++
+# pip install --user --no-cache-dir git+https://github.com/facebookresearch/detectron2.git@5aeb252b194b93dc2879b4ac34bc51a31b5aee13
+
+# fix bug in detectron2
+# \lib\site-packages\detectron2\data\transforms\transform.py
+# def __init__(self, src_rect, output_size, interp=Image.BILINEAR, fill=0): -> instead of LINEAR
