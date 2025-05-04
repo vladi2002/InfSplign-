@@ -1,35 +1,20 @@
-import os
-
-from split_visor_data import split_visor_prompts
-
-# os.environ["HF_HOME"] = "/tudelft.net/staff-umbrella/StudentsCVlab/vchatalbasheva/hf_cache"
-
 import argparse
-import json
 import logging
-import random
 from collections import defaultdict
-from diffusers import DiffusionPipeline
-import torch
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import diffusers
-import torch.nn.functional as F
-import torchvision.transforms.functional as TF
 import numpy as np
-import math
 from diffusers import StableDiffusionXLPipeline
-from IPython.display import display, Image
-from PIL import ImageOps, Image
 from diffusers.pipelines.stable_diffusion_xl.pipeline_output import StableDiffusionXLPipelineOutput
 from self_guide_combined import SelfGuidanceEdits
 from functools import partial
 from attn_processor import SelfGuidanceAttnProcessor2_0, SelfGuidanceAttnProcessor
 from diffusers.models.attention_processor import Attention
 import multiprocessing as mp
-import os
 import torch
 import psutil
 import subprocess
+from split_data_multiprocessing import *
 
 
 def log_memory_usage():
@@ -232,7 +217,7 @@ class SelfGuidanceSDXLPipeline(StableDiffusionXLPipeline):
             save_attn_maps=False,
             cluster_objects=False,
             self_guidance_mode=False,
-            loss_type="sigmoid",
+            loss_type=None,
             loss_num=1,
             margin=0.5,
             plot_centroid=False,
@@ -384,19 +369,22 @@ class SelfGuidanceSDXLPipeline(StableDiffusionXLPipeline):
         if sg_t_end < 0: 
             sg_t_end = len(timesteps)
         
-        first_steps = 3 * num_inference_steps // 16
-        remaining = 25 * num_inference_steps // 32
-        self_guidance_alternate_steps = list(range(first_steps, first_steps+remaining+1, 2))
+        if self_guidance_mode:   
+            first_steps = 3 * num_inference_steps // 16
+            remaining = 25 * num_inference_steps // 32
+            self_guidance_alternate_steps = list(range(first_steps, first_steps+remaining+1, 2))
         
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
                 
                 if not (sg_grad_wt > 0 and sg_edits is not None):
-                    do_self_guidance = sg_grad_wt > 0 and sg_edits is not None # base sdxl
-                elif i > sg_t_end and i+1 not in self_guidance_alternate_steps:
+                    do_self_guidance = False # base sdxl
+                elif self_guidance_mode and i > sg_t_end and i+1 not in self_guidance_alternate_steps:
                     do_self_guidance = False # self-guidance when we don't apply it
-                else:
+                elif sg_t_start <= i < sg_t_end or (self_guidance_mode and i > sg_t_end and i+1 in self_guidance_alternate_steps):
                     do_self_guidance = True
+                else:
+                    do_self_guidance = False
                 
                 # expand the latents if we are doing classifier free guidance
                 with torch.set_grad_enabled(do_self_guidance):
@@ -532,14 +520,17 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   save_dir_name="sdxl-self-guidance-1", vocab_spatial=[], cluster_objects=False, 
                   loss_num="", alpha=1., self_guidance_mode=False, loss_type="sigmoid",
                   plot_centroid=False, save_aux=False, two_objects=False, weight_combinations=None,
-                  do_multiprocessing=False, img_id="", update_latents=False):
+                  do_multiprocessing=False, img_id="", update_latents=False, benchmark=""):
     if do_multiprocessing:
-        save_path = os.path.join("images", "sdxl-self-guidance-relu")
+        save_path = os.path.join("images", "self-guidance-relu3")
+        os.makedirs(save_path, exist_ok=True)
+    # TODO: and do_multiprocessing
+    elif benchmark == "t2i" or benchmark == "geneval":
+        save_path = os.path.join("images", save_dir_name)
         os.makedirs(save_path, exist_ok=True)
     else:
         save_path = ""
     
-    seed_idx = 0
     for prompt in prompts:
         print("prompt", prompt)
         
@@ -555,6 +546,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
             if word in prompt:
                 relationship = word
                 break
+        print("relationship: ", relationship)
         
         if shifts:
             shift = shifts[relationship]
@@ -562,7 +554,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
             shift = []
         print("shift: ", shift)
 
-        if do_multiprocessing:
+        if do_multiprocessing or benchmark == "t2i" or benchmark == "geneval":
             words = all_words[prompt]
         else:
             for word_list in all_words:
@@ -571,134 +563,135 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                     break
         print("words: ", words)
         
-        # shape_weight = 0.3 # [0.5, 2] too strong - keep it low
-        # appearance_weight = 0.03 # [0.03, 0.3]
-        # size_weight = 0.3 # [0.5, 2]
-        # centroid_weight = 5.0 # [1, 3]         
+        for i in range(num_images_per_prompt):
+            if benchmark == "t2i":
+                seed = seeds[i]
+            else:
+                seed = seeds[0]
+            print("seed", seed)
         
-        # Eq 9
-        # appearance_weight = 0.25
-        # shape_weight = 2
-        # shape_dx = 0.5
-        
-        seed = seeds[seed_idx]
-        
-        filename = f"{img_id}_seed_{seed}_multi_{do_multiprocessing}_weight_grad_{sg_grad_wt}_num_steps_{num_inference_steps}_appearance_{appearance_weight}_centroid_{centroid_weight}_size_{size_weight}_shape_{shape_weight}"
-        out_filename = os.path.join(save_path, f"{prompt}_{filename}.png")
-        print("out_filename", out_filename)
-        
-        if os.path.exists(out_filename):
-            continue
-        # else:
-        #     print("File does not exist, generating new image")
-        
-        generator = torch.Generator(device=device).manual_seed(seed)
-        
-        save_aux = True
-        # THIS SETS THE SAVE_AUX IN THE PROCESSOR TO TRUE
-        for name, module in pipe.unet.named_modules():
-            if isinstance(module, Attention):
-                if hasattr(module.processor, 'save_aux'):
-                    module.processor.save_aux = save_aux
-          
-        # Get all hooks registered on this module
-        for hook_id, hook_fn in pipe.unet.up_blocks[2]._forward_hooks.items():
-            # IF i DON'T DELETE IT, CUDA OUT OF MEMORY -> the hook is still registered with save_aux=True and it keeps appending data
-            del pipe.unet.up_blocks[2]._forward_hooks[hook_id]
-        
-        # pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="kwargs", save_aux=save_aux, kwargs_key="hidden_states"), with_kwargs=True)
-        pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="output", save_aux=save_aux), with_kwargs=True)
-        
-        print("BASELINE SDXL")
-        out = pipe(prompt=[prompt], generator=generator, num_inference_steps=num_inference_steps, save_aux=save_aux).images
-        saved_img_path = os.path.join(save_path, f"{prompt}_base_seed_{seed}_num_steps_{num_inference_steps}.png")
-        if not os.path.exists(saved_img_path):
-            out[0].save(saved_img_path)
+            if benchmark == "t2i" or benchmark == "geneval" or benchmark == "visor":
+                filename = f"{prompt}_{img_id}_{i}.png"
+            else:            
+                filename = f"{prompt}_{img_id}_seed_{seed}_multi_{do_multiprocessing}_weight_grad_{sg_grad_wt}_num_steps_{num_inference_steps}_appearance_{appearance_weight}_centroid_{centroid_weight}_size_{size_weight}_shape_{shape_weight}.png"
             
-        # log_memory_usage()
-        
-        aux = pipe.get_sg_aux()
-        aux_idx = 0
-        n_img = 1
-        
-        try: 
-            processed_aux = {k:torch.utils._pytree.tree_map(lambda x: x[aux_idx:aux_idx+1].repeat_interleave(n_img, 0).cpu(), v) for k,v in aux.items()}
-        except Exception as e:
-            print(f"Error processing auxiliary data: {str(e)}")
-            pass
-        
-        sg_edits = {
-            ('last_attn', 'last_feats'): [
-                {
-                    'words': prompt.split(),
-                    'fn': SelfGuidanceEdits.appearance, # [0.03, 0.3]
-                    'weight': appearance_weight, # 0.25  # paper weights 12
-                    "function": "appearance",
-                    'tgt': processed_aux,
-                    'kwargs': {}
-                }
-            ],
-            'attn': [
-                {
-                    'words': words,
-                    'fn': SelfGuidanceEdits.centroid, # [1,3]
-                    "function": "centroid",	
-                    'spatial': relationship,
-                    'alpha': alpha,
-                    'kwargs': {
-                        'shifts': shift,
-                        'relative': False
-                    },
-                    'weight': centroid_weight, # paper weight 4.0,
-                    # 'tgt': processed_aux
-                },
-                {
-                    'words': words,
-                    'fn': SelfGuidanceEdits.size, # [0.5, 2]
-                    "function": "size",
-                    'kwargs': {
-                        'shifts': shift,
-                        'relative': False,
-                    },
-                    'weight': size_weight, # paper weight 0.7
-                    # 'tgt': processed_aux
-                },
-                {
-                    'words': [word for word in prompt.split() if word not in words],
-                    'fn': SelfGuidanceEdits.shape, # [0.5, 2]
-                    'function': "shape",
-                    'kwargs': {},
-                    'weight': shape_weight, # 1.5  # paper weight 6.0, 15.0
-                    'tgt': processed_aux
-                },
-            ]
-        }
-        
-        save_aux = False
-        
-        # THIS SETS THE SAVE_AUX IN THE PROCESSOR TO FALSE
-        for name, module in pipe.unet.named_modules():
-            if isinstance(module, Attention):
-                if hasattr(module.processor, 'save_aux'):
-                    module.processor.save_aux = save_aux
-        
-        # Get all hooks registered on this module
-        for hook_id, hook_fn in pipe.unet.up_blocks[2]._forward_hooks.items():
-            # IF i DON'T DELETE IT, CUDA OUT OF MEMORY -> the hook is still registered with save_aux=True and it keeps appending data
-            del pipe.unet.up_blocks[2]._forward_hooks[hook_id]
-        
-        # pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="kwargs", save_aux=save_aux, kwargs_key="hidden_states"), with_kwargs=True)
-        pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="output", save_aux=save_aux), with_kwargs=True)
+            out_filename = os.path.join(save_path, filename)
+            print("out_filename", out_filename)
             
-        print("SELF-GUIDANCE")
-        out = pipe(prompt=[prompt], generator=generator, sg_grad_wt=sg_grad_wt, sg_edits=sg_edits,
-                num_inference_steps=num_inference_steps, L2_norm=L2_norm, logger=logger, margin=margin,
-                sg_loss_rescale=sg_loss_rescale, debug=False, sg_t_start=sg_t_start, sg_t_end=sg_t_end,
-                visualize_attn_maps=visualize_attn_maps, save_attn_maps=save_attn_maps, cluster_objects=cluster_objects,
-                self_guidance_mode=self_guidance_mode, loss_type=loss_type, loss_num=int(loss_num),
-                plot_centroid=plot_centroid, save_aux=save_aux, two_objects=two_objects,
-                relationship=relationship, update_latents=update_latents).images
-        out[0].save(out_filename)
+            if os.path.exists(out_filename):
+                continue
+            
+            generator = torch.Generator(device=device).manual_seed(seed)
+            
+            save_aux = True
+            # THIS SETS THE SAVE_AUX IN THE PROCESSOR TO TRUE
+            for name, module in pipe.unet.named_modules():
+                if isinstance(module, Attention):
+                    if hasattr(module.processor, 'save_aux'):
+                        module.processor.save_aux = save_aux
+            
+            # Get all hooks registered on this module
+            for hook_id, hook_fn in pipe.unet.up_blocks[2]._forward_hooks.items():
+                # IF i DON'T DELETE IT, CUDA OUT OF MEMORY -> the hook is still registered with save_aux=True and it keeps appending data
+                del pipe.unet.up_blocks[2]._forward_hooks[hook_id]
+            
+            # pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="kwargs", save_aux=save_aux, kwargs_key="hidden_states"), with_kwargs=True)
+            pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="output", save_aux=save_aux), with_kwargs=True)
+            
+            print("BASELINE SDXL")
+            out = pipe(prompt=[prompt], generator=generator, num_inference_steps=num_inference_steps, save_aux=save_aux).images
+            if benchmark == "t2i" or benchmark == "geneval":
+                saved_img_path = os.path.join(save_path, f"{prompt}_{i}.png")
+            else:
+                saved_img_path = os.path.join(save_path, f"{prompt}_base_seed_{seed}_num_steps_{num_inference_steps}.png")
+            
+            if not os.path.exists(saved_img_path):
+                out[0].save(saved_img_path)
+                
+            # log_memory_usage()
+            
+            aux = pipe.get_sg_aux()
+            aux_idx = 0
+            n_img = 1
+            
+            try: 
+                processed_aux = {k:torch.utils._pytree.tree_map(lambda x: x[aux_idx:aux_idx+1].repeat_interleave(n_img, 0).cpu(), v) for k,v in aux.items()}
+            except Exception as e:
+                print(f"Error processing auxiliary data: {str(e)}")
+                pass
+            
+            sg_edits = {
+                ('last_attn', 'last_feats'): [
+                    {
+                        'words': prompt.split(),
+                        'fn': SelfGuidanceEdits.appearance, # [0.03, 0.3]
+                        'weight': appearance_weight, # 0.25  # paper weights 12
+                        "function": "appearance",
+                        'tgt': processed_aux,
+                        'kwargs': {}
+                    }
+                ],
+                'attn': [
+                    {
+                        'words': words,
+                        'fn': SelfGuidanceEdits.centroid, # [1,3]
+                        "function": "centroid",	
+                        'spatial': relationship,
+                        'alpha': alpha,
+                        'kwargs': {
+                            'shifts': shift,
+                            'relative': False
+                        },
+                        'weight': centroid_weight, # paper weight 4.0,
+                        # 'tgt': processed_aux
+                    },
+                    {
+                        'words': words,
+                        'fn': SelfGuidanceEdits.size, # [0.5, 2]
+                        "function": "size",
+                        'kwargs': {
+                            'shifts': shift,
+                            'relative': False,
+                        },
+                        'weight': size_weight, # paper weight 0.7
+                        # 'tgt': processed_aux
+                    },
+                    {
+                        'words': [word for word in prompt.split() if word not in words],
+                        'fn': SelfGuidanceEdits.shape, # [0.5, 2]
+                        'function': "shape",
+                        'kwargs': {},
+                        'weight': shape_weight, # 1.5  # paper weight 6.0, 15.0
+                        'tgt': processed_aux
+                    },
+                ]
+            }
+            
+            save_aux = False
+            
+            # THIS SETS THE SAVE_AUX IN THE PROCESSOR TO FALSE
+            for name, module in pipe.unet.named_modules():
+                if isinstance(module, Attention):
+                    if hasattr(module.processor, 'save_aux'):
+                        module.processor.save_aux = save_aux
+            
+            # Get all hooks registered on this module
+            for hook_id, hook_fn in pipe.unet.up_blocks[2]._forward_hooks.items():
+                # IF i DON'T DELETE IT, CUDA OUT OF MEMORY -> the hook is still registered with save_aux=True and it keeps appending data
+                del pipe.unet.up_blocks[2]._forward_hooks[hook_id]
+            
+            # pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="kwargs", save_aux=save_aux, kwargs_key="hidden_states"), with_kwargs=True)
+            pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="output", save_aux=save_aux), with_kwargs=True)
+                
+            print("SELF-GUIDANCE")
+            out = pipe(prompt=[prompt], generator=generator, sg_grad_wt=sg_grad_wt, sg_edits=sg_edits,
+                    num_inference_steps=num_inference_steps, L2_norm=L2_norm, logger=logger, margin=margin,
+                    sg_loss_rescale=sg_loss_rescale, debug=False, sg_t_start=sg_t_start, sg_t_end=sg_t_end,
+                    visualize_attn_maps=visualize_attn_maps, save_attn_maps=save_attn_maps, cluster_objects=cluster_objects,
+                    self_guidance_mode=self_guidance_mode, loss_type=loss_type, loss_num=int(loss_num),
+                    plot_centroid=plot_centroid, save_aux=save_aux, two_objects=two_objects,
+                    relationship=relationship, update_latents=update_latents).images
+            out[0].save(out_filename)
             # seed_idx += 1
 
 
@@ -725,13 +718,13 @@ def setup_logger(filename):
 def get_config():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="sdxl")
-    parser.add_argument("--benchmark", default="visor")
+    parser.add_argument("--benchmark", default=None)
     
     parser.add_argument("--loss_num", default="1")
     parser.add_argument("--relationship", default="left")
     parser.add_argument("--alpha", default=1)
     
-    parser.add_argument("--loss_type", default="sigmoid")
+    parser.add_argument("--loss_type", default=None)
     parser.add_argument("--margin", default=0.5)
     parser.add_argument("--plot_centroid", default=False)
     parser.add_argument("--L2_norm", default=False)
@@ -776,30 +769,37 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
         update_latents=update_latents)
 
 
-def start_multiprocessing(attn_greenlist, seeds, 
+def start_multiprocessing(attn_greenlist, prompts, seeds, 
         num_inference_steps, sg_t_start, sg_t_end, sg_grad_wt, sg_loss_rescale,
         L2_norm, shifts, num_images_per_prompt, vocab_spatial, 
         loss_num, alpha, loss_type, margin, self_guidance_mode, 
         two_objects, plot_centroid, weight_combinations,
-        do_multiprocessing, img_id, update_latents):
+        do_multiprocessing, img_id, update_latents, benchmark):
     
     # MULTIPROCESSING
-    num_gpus = torch.cuda.device_count()        
+    # SHELL
+    num_gpus = torch.cuda.device_count()
     print(f"Number of GPUs available: {num_gpus}")
 
-    split_visor_prompts(num_gpus)
-
-    prompts_folder = f"multiprocessing_prompts_{num_gpus}"
+    # TODO: UNCOMMENT THIS FOR SIEGER
+    # Prepare data for multiprocessing
+    split_prompts(num_gpus, benchmark, prompts)
+    prompts_folder = os.path.join('data_splits', f'{benchmark}', f"multiprocessing_{num_gpus}")
+    
+    # prompts_folder = f"multiprocessing_prompts_3"
     
     mp.set_start_method('spawn')
     processes = []
     for gpu_id in range(num_gpus):
         print("THIS IS GPU", gpu_id)        
         with open(os.path.join(prompts_folder, f'prompts_part_{gpu_id}.json'), 'r') as f:
-            all_prompts = json.load(f)
+            all_words = json.load(f)
         
-        prompts = [data['text'] for data in all_prompts]
-        all_words = {data['text']: [data['obj_1_attributes'][0], data["obj_2_attributes"][0]] for data in all_prompts}
+        if benchmark == "visor":
+            prompts = [data['text'] for data in all_words]
+            all_words = {data['text']: [data['obj_1_attributes'][0], data["obj_2_attributes"][0]] for data in all_words}
+        if benchmark == "t2i" or benchmark == "geneval":
+            prompts = all_words.keys()            
         
         p = mp.Process(target=run_on_gpu, args=(gpu_id, prompts, all_words, attn_greenlist, seeds, 
                                                 num_inference_steps, sg_t_start, sg_t_end, sg_grad_wt, sg_loss_rescale,
@@ -812,6 +812,7 @@ def start_multiprocessing(attn_greenlist, seeds,
 
     for p in processes:
         p.join()
+
 
 def main(config):
     # log_memory_usage()
@@ -829,6 +830,7 @@ def main(config):
     do_multiprocessing = bool(config.do_multiprocessing)
     update_latents = bool(config.update_latents)
     img_id = config.img_id
+    benchmark = config.benchmark
     
     print("L2_norm: ", L2_norm)
     print("self_guidance_mode: ", self_guidance_mode)
@@ -841,54 +843,123 @@ def main(config):
     print("do_multiprocessing: ", do_multiprocessing)
     print("update_latents: ", update_latents)
     print("img_id: ", img_id)
+    print("benchmark: ", benchmark)
     
-    all_prompts = [
-        # "a cake to the left of a tv",  
-        # "a cake to the right of a tv",
-        "a cake above a tv",
-        # "a cake below a tv",
-        # "a person to the left of a bicycle",
-        # "a potted plant to the left of a clock",
-        # "a kite to the left of a tv",
-        # "a skateboard to the right of a sheep",
-        # "a bottle to the right of a handbag",
-        # "a giraffe to the right of a book",
-        # "a sink to the right of an umbrella",
-        # "a snowboard above a car",
-        # "an apple above a dog",
-        # "a tv above a car",
-        # "a bird above a motorcycle",
-        # "a toilet below a keyboard",
-        # "a suitcase below a donut",
-        # "a bowl below a sandwich",
-        # "a knife below a spoon"
-        # "a small dog sitting in a park",     
-        # "distant shot of the tokyo tower with a massive sun in the sky",        
-    ]
+    # MY INTERACTIVE TESTS
+    if benchmark is None:
+        all_prompts = [
+            # "a cake to the left of a tv",  
+            # "a cake to the right of a tv",
+            "a cake above a tv",
+            # "a cake below a tv",
+            # "a person to the left of a bicycle",
+            # "a potted plant to the left of a clock",
+            # "a kite to the left of a tv",
+            # "a skateboard to the right of a sheep",
+            # "a bottle to the right of a handbag",
+            # "a giraffe to the right of a book",
+            # "a sink to the right of an umbrella",
+            # "a snowboard above a car",
+            # "an apple above a dog",
+            # "a tv above a car",
+            # "a bird above a motorcycle",
+            # "a toilet below a keyboard",
+            # "a suitcase below a donut",
+            # "a bowl below a sandwich",
+            # "a knife below a spoon"
+            # "a small dog sitting in a park",     
+            # "distant shot of the tokyo tower with a massive sun in the sky",        
+        ]
     
-    all_words = [
-        ["cake", "tv"],
-        ["person", "bicycle"],
-        ["plant", "clock"],
-        ["kite", "tv"],
-        ["skateboard", "sheep"],
-        ["bottle", "handbag"],
-        ["giraffe", "book"],
-        ["sink", "umbrella"],
-        ["snowboard", "car"],
-        ["apple", "dog"],
-        ["tv", "car"],
-        ["bird", "motorcycle"],
-        ["toilet", "keyboard"],
-        ["suitcase", "donut"],
-        ["bowl", "sandwich"],
-        ["knife", "spoon"]
-        # ["sun"]
-        # ["dog"],
-    ]    
-    seeds = [42]
-    num_inference_steps = 64 # 256
-    num_images_per_prompt = 1
+        all_words = [
+            ["cake", "tv"],
+            ["person", "bicycle"],
+            ["plant", "clock"],
+            ["kite", "tv"],
+            ["skateboard", "sheep"],
+            ["bottle", "handbag"],
+            ["giraffe", "book"],
+            ["sink", "umbrella"],
+            ["snowboard", "car"],
+            ["apple", "dog"],
+            ["tv", "car"],
+            ["bird", "motorcycle"],
+            ["toilet", "keyboard"],
+            ["suitcase", "donut"],
+            ["bowl", "sandwich"],
+            ["knife", "spoon"]
+            # ["sun"]
+            # ["dog"],
+        ]    
+        
+        seeds = [42]
+        num_images_per_prompt = 1        
+        save_dir_name = model
+        vocab_spatial = ["to the left of", "to the right of", "above", "below"]        
+        shifts = {
+            "to the left of": [(0., 0.5), (1., 0.5)],
+            "to the right of": [(1., 0.5), (0., 0.5)],
+            "above": [(0.5, 0), (0.5, 1)],
+            "below": [(0.5, 1), (0.5, 0)]
+        }
+        
+    elif benchmark == "t2i":
+        with open(os.path.join('json', 't2i_objects.json'), 'r') as f:
+            all_words = json.load(f)
+        all_prompts = all_words.keys()
+        num_images_per_prompt = 10
+        seeds = list(range(42, 42+num_images_per_prompt))
+        save_dir_name = f"{model}_t2i-{img_id}"
+        vocab_spatial = ['on side of', 'next to', 'near', 'on the left of', 'on the right of', 'on the bottom of', 'on the top of']
+        shifts = {
+            "on the left of": [(0., 0.5), (1., 0.5)],
+            "on the right of": [(1., 0.5), (0., 0.5)],
+            "on the top of": [(0.5, 0), (0.5, 1)],
+            "on the bottom of": [(0.5, 1), (0.5, 0)],
+            "on side of": [(0.2, 0.5), (0.8, 0.5)], # left
+            "next to": [(0.8, 0.5), (0.2, 0.5)], # right
+            "near": [(0.25, 0.5), (0.75, 0.5)] # left
+        }
+                
+    # TODO: TEST THIS
+    elif benchmark == "visor":
+        with open(os.path.join('json', 'visor_3160.json'), 'r') as f:
+            visor_data = json.load(f)
+            
+        all_prompts = []
+        all_words = {}
+        for data in visor_data:
+            prompt = data['text']
+            all_prompts.append(prompt)            
+            all_words[prompt] = [data['obj_1_attributes'][0], data["obj_2_attributes"][0]]
+        print("all_prompts len", len(all_prompts))
+        print("all_words len", len(all_words))
+        
+        seeds = [42]
+        save_dir_name = f"{model}_visor-{img_id}"
+        vocab_spatial = ["to the left of", "to the right of", "above", "below"]
+        num_images_per_prompt = 4
+        shifts = {
+            "to the left of": [(0., 0.5), (1., 0.5)],
+            "to the right of": [(1., 0.5), (0., 0.5)],
+            "above": [(0.5, 0), (0.5, 1)],
+            "below": [(0.5, 1), (0.5, 0)]
+        }
+
+    elif benchmark == "geneval":
+        with open(os.path.join('json', 'geneval_objects.json'), 'r') as f:
+            all_words = json.load(f)
+        all_prompts = all_words.keys()
+        seeds = [42]
+        save_dir_name = f"{model}_geneval-{img_id}"
+        num_images_per_prompt = 4
+        vocab_spatial = ['above', 'below', 'left of', 'right of']
+        shifts = {
+            "left of": [(0., 0.5), (1., 0.5)],
+            "right of": [(1., 0.5), (0., 0.5)],
+            "above": [(0.5, 0), (0.5, 1)],
+            "below": [(0.5, 1), (0.5, 0)]
+        }
     
     attn_greenlist = [
         "up_blocks.0.attentions.1.transformer_blocks.1.attn2",
@@ -905,29 +976,26 @@ def main(config):
     
     sg_loss_rescale = 1000.  # to avoid numerical underflow, scale loss by this amount and then divide gradients after backprop
     sg_t_start = 0
-    sg_t_end = 3 * num_inference_steps // 16
+    if loss_type is not None:
+        num_inference_steps = 100
+        sg_t_end = 25
+    else:
+        num_inference_steps = 64
+        sg_t_end = 3 * num_inference_steps // 16
     
     visualize_attn_maps = False
     save_attn_maps = False
     cluster_objects = False
     relationship = None
-    
-    shifts = {
-        "to the left of": [(0., 0.5), (1., 0.5)],
-        "to the right of": [(1., 0.5), (0., 0.5)],
-        "above": [(0.5, 0), (0.5, 1)],
-        "below": [(0.5, 1), (0.5, 0)]
-    }
-    
-    vocab_spatial = ["to the left of", "to the right of", "above", "below"]
         
     if do_multiprocessing:
-        start_multiprocessing(attn_greenlist, seeds, num_inference_steps, 
+        start_multiprocessing(
+            attn_greenlist, all_prompts, seeds, num_inference_steps, 
             sg_t_start, sg_t_end, sg_grad_wt, sg_loss_rescale,
             L2_norm, shifts, num_images_per_prompt, vocab_spatial, 
             loss_num, alpha, loss_type, margin, self_guidance_mode, 
             two_objects, plot_centroid, weight_combinations,
-            do_multiprocessing, img_id, update_latents)
+            do_multiprocessing, img_id, update_latents, benchmark)
     
     else:
         pipe = init_pipeline(device)
@@ -938,15 +1006,14 @@ def main(config):
         self_guidance(pipe, device, attn_greenlist, all_prompts, all_words, seeds, num_inference_steps, sg_t_start, sg_t_end, sg_grad_wt,
             sg_loss_rescale, L2_norm=L2_norm, visualize_attn_maps=visualize_attn_maps, shifts=shifts,
             save_attn_maps=save_attn_maps, num_images_per_prompt=num_images_per_prompt, relationship=relationship,
-            save_dir_name=model, vocab_spatial=vocab_spatial, cluster_objects=cluster_objects, 
+            save_dir_name=save_dir_name, vocab_spatial=vocab_spatial, cluster_objects=cluster_objects, 
             loss_num=loss_num, alpha=alpha, self_guidance_mode=self_guidance_mode,
             loss_type=loss_type, margin=margin, plot_centroid=plot_centroid, two_objects=two_objects, 
             weight_combinations=weight_combinations, do_multiprocessing=do_multiprocessing, img_id=img_id,
-            update_latents=update_latents)
+            update_latents=update_latents, benchmark=benchmark)
     
     # log_memory_usage()
-    
-    
+
     
 if __name__ == "__main__":
     config = get_config()
