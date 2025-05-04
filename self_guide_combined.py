@@ -1,21 +1,8 @@
-from collections import defaultdict
-from diffusers import DiffusionPipeline
 import torch
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-import diffusers
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
-import numpy as np
-import einops
-# import gradio as gr
-import math
-# from IPython.display import display, Image
-from PIL import ImageOps, Image
-from scipy.ndimage import map_coordinates
-from torch.nn.functional import mse_loss
 from skimage.filters import threshold_otsu
 from scipy import ndimage
-
 # from self_guidance import plot_attention_map
 
 
@@ -427,72 +414,3 @@ class SelfGuidanceEdits:
 
 
  # @staticmethod
-    # def shape(attn, i, tgt, idxs=None, rot=0., sy=1., sx=1., dy=0., dx=0., thresh=True, rsz=None, L2=False, two_objects=False):
-    #     attn = attn[i]
-    #     tgt_attn = tgt[i].to(attn.device)
-
-    #     if idxs is not None:
-    #         attn = attn[..., idxs]
-    #         tgt_attn = tgt_attn[..., idxs]
-    #     if rsz:
-    #         attn = TF.resize(attn.permute(0, 3, 1, 2), rsz, antialias=True).permute(0, 2, 3, 1)
-    #         tgt_attn = TF.resize(tgt_attn.permute(0, 3, 1, 2), rsz, antialias=True).permute(0, 2, 3, 1)
-    #     if thresh:
-    #         attn = SelfGuidanceEdits._attn_diff_norm(attn) # not hard threshold
-    #         tgt_attn = SelfGuidanceEdits._attn_diff_norm(tgt_attn, hard=True)
-        
-    #     # THIS PART IS MANIPULATING THE POSITION THROUGH THE SHAPE
-    #     # FORMULA FROM THE PAPER - EQ. 9
-    #     transform = rot != 0 or any(_ != 1. for _ in [sy, sx, dy, dx])
-        
-    #     # SETTING IT TO FALSE CAUSE WE'RE USING EQ. 17
-    #     transform = True
-        
-    #     if transform:
-    #         ns, hs, ws, ks = tgt_attn.shape
-    #         dev = attn.device
-    #         n, h, w, k = torch.meshgrid(torch.arange(ns), torch.arange(ws),
-    #                                     torch.arange(hs), torch.arange(ks), indexing='ij')
-    #         n, h, w, k = n.to(dev), h.to(dev), w.to(dev), k.to(dev)
-    #         # centroid
-    #         c = SelfGuidanceEdits._centroid(attn)
-    #         ch = c[..., 1][:, None, None] * hs
-    #         cw = c[..., 0][:, None, None] * ws
-    #         # object centric coord system
-    #         h = h - ch
-    #         w = w - cw
-    #         # rotate
-    #         angle_deg_cw = rot
-    #         th = angle_deg_cw * math.pi / 180
-    #         wh = torch.stack((w, h), -1)[..., None]
-    #         R = torch.tensor([[math.cos(th), math.sin(th)], [math.sin(-th), math.cos(th)]]).to(dev)
-    #         wh = (R @ wh)[..., 0]
-    #         w = wh[..., 0]
-    #         h = wh[..., 1]
-    #         # resize
-    #         h = h / sy
-    #         w = w / sx
-    #         # shift
-    #         y_shift = dy * hs * sy
-    #         x_shift = dx * ws * sx
-    #         h = h - y_shift
-    #         w = w - x_shift
-    #         h = h + ch
-    #         w = w + cw
-
-    #         h_normalized = (2 * h / (hs - 1)) - 1
-    #         w_normalized = (2 * w / (ws - 1)) - 1
-    #         coords = torch.stack((w_normalized, h_normalized), dim=-1)
-    #         coords_unnorm = torch.stack((w, h), dim=-1)
-
-    #         coords = coords[:, :, :, 0, :]
-    #         coords_unnorm = coords_unnorm[:, :, :, 0, :]
-
-    #         # Collapse the batch_size, num_tokens dimension and set num_channels=1 for grid sampling
-    #         tgt_attn = einops.rearrange(tgt_attn, 'n h w k -> n k h w')
-    #         tgt_attn = torch.nn.functional.grid_sample(tgt_attn, coords, mode='bilinear', align_corners=False)
-    #         tgt_attn = einops.rearrange(tgt_attn, 'n k h w -> n h w k')
-    #     loss = SelfGuidanceEdits.compute_loss(L2, attn, tgt_attn)
-    #     return [loss]
-    #     # if L2: return (0.5 * (attn - tgt_attn) ** 2).mean()
-    #     # return (attn - tgt_attn).abs().mean()
