@@ -16,6 +16,10 @@ import psutil
 import subprocess
 from split_data_multiprocessing import *
 
+from utils.visor_utils import evaluate, show_visor_results
+from utils.pipeline_utils import load_object_detection_ann, \
+    initialize_object_detection_model, create_object_detection_annotations
+
 
 def log_memory_usage():
     # CPU RAM usage
@@ -521,6 +525,8 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   loss_num="", alpha=1., self_guidance_mode=False, loss_type="sigmoid",
                   plot_centroid=False, save_aux=False, two_objects=False, weight_combinations=None,
                   do_multiprocessing=False, img_id="", update_latents=False, benchmark=""):
+    print("num_images_per_prompt", num_images_per_prompt)
+    
     if do_multiprocessing:
         save_path = os.path.join("images", "self-guidance-relu3")
         os.makedirs(save_path, exist_ok=True)
@@ -583,42 +589,42 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
             
             generator = torch.Generator(device=device).manual_seed(seed)
             
-            save_aux = True
-            # THIS SETS THE SAVE_AUX IN THE PROCESSOR TO TRUE
-            for name, module in pipe.unet.named_modules():
-                if isinstance(module, Attention):
-                    if hasattr(module.processor, 'save_aux'):
-                        module.processor.save_aux = save_aux
+            # save_aux = True
+            # # THIS SETS THE SAVE_AUX IN THE PROCESSOR TO TRUE
+            # for name, module in pipe.unet.named_modules():
+            #     if isinstance(module, Attention):
+            #         if hasattr(module.processor, 'save_aux'):
+            #             module.processor.save_aux = save_aux
             
-            # Get all hooks registered on this module
-            for hook_id, hook_fn in pipe.unet.up_blocks[2]._forward_hooks.items():
-                # IF i DON'T DELETE IT, CUDA OUT OF MEMORY -> the hook is still registered with save_aux=True and it keeps appending data
-                del pipe.unet.up_blocks[2]._forward_hooks[hook_id]
+            # # Get all hooks registered on this module
+            # for hook_id, hook_fn in pipe.unet.up_blocks[2]._forward_hooks.items():
+            #     # IF i DON'T DELETE IT, CUDA OUT OF MEMORY -> the hook is still registered with save_aux=True and it keeps appending data
+            #     del pipe.unet.up_blocks[2]._forward_hooks[hook_id]
             
-            # pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="kwargs", save_aux=save_aux, kwargs_key="hidden_states"), with_kwargs=True)
-            pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="output", save_aux=save_aux), with_kwargs=True)
+            # # pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="kwargs", save_aux=save_aux, kwargs_key="hidden_states"), with_kwargs=True)
+            # pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="output", save_aux=save_aux), with_kwargs=True)
             
-            print("BASELINE SDXL")
-            out = pipe(prompt=[prompt], generator=generator, num_inference_steps=num_inference_steps, save_aux=save_aux).images
-            if benchmark == "t2i" or benchmark == "geneval":
-                saved_img_path = os.path.join(save_path, f"{prompt}_{i}.png")
-            else:
-                saved_img_path = os.path.join(save_path, f"{prompt}_base_seed_{seed}_num_steps_{num_inference_steps}.png")
+            # print("BASELINE SDXL")
+            # out = pipe(prompt=[prompt], generator=generator, num_inference_steps=num_inference_steps, save_aux=save_aux).images
+            # if benchmark == "t2i" or benchmark == "geneval":
+            #     saved_img_path = os.path.join(save_path, f"{prompt}_{i}.png")
+            # else:
+            #     saved_img_path = os.path.join(save_path, f"{prompt}_base_seed_{seed}_num_steps_{num_inference_steps}.png")
             
-            if not os.path.exists(saved_img_path):
-                out[0].save(saved_img_path)
+            # if not os.path.exists(saved_img_path):
+            #     out[0].save(saved_img_path)
                 
-            # log_memory_usage()
+            # # log_memory_usage()
             
-            aux = pipe.get_sg_aux()
-            aux_idx = 0
-            n_img = 1
+            # aux = pipe.get_sg_aux()
+            # aux_idx = 0
+            # n_img = 1
             
-            try: 
-                processed_aux = {k:torch.utils._pytree.tree_map(lambda x: x[aux_idx:aux_idx+1].repeat_interleave(n_img, 0).cpu(), v) for k,v in aux.items()}
-            except Exception as e:
-                print(f"Error processing auxiliary data: {str(e)}")
-                pass
+            # try: 
+            #     processed_aux = {k:torch.utils._pytree.tree_map(lambda x: x[aux_idx:aux_idx+1].repeat_interleave(n_img, 0).cpu(), v) for k,v in aux.items()}
+            # except Exception as e:
+            #     print(f"Error processing auxiliary data: {str(e)}")
+            #     pass
             
             sg_edits = {
                 ('last_attn', 'last_feats'): [
@@ -627,7 +633,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                         'fn': SelfGuidanceEdits.appearance, # [0.03, 0.3]
                         'weight': appearance_weight, # 0.25  # paper weights 12
                         "function": "appearance",
-                        'tgt': processed_aux,
+                        # 'tgt': processed_aux,
                         'kwargs': {}
                     }
                 ],
@@ -662,26 +668,26 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                         'function': "shape",
                         'kwargs': {},
                         'weight': shape_weight, # 1.5  # paper weight 6.0, 15.0
-                        'tgt': processed_aux
+                        # 'tgt': processed_aux
                     },
                 ]
             }
             
             save_aux = False
             
-            # THIS SETS THE SAVE_AUX IN THE PROCESSOR TO FALSE
-            for name, module in pipe.unet.named_modules():
-                if isinstance(module, Attention):
-                    if hasattr(module.processor, 'save_aux'):
-                        module.processor.save_aux = save_aux
+            # # THIS SETS THE SAVE_AUX IN THE PROCESSOR TO FALSE
+            # for name, module in pipe.unet.named_modules():
+            #     if isinstance(module, Attention):
+            #         if hasattr(module.processor, 'save_aux'):
+            #             module.processor.save_aux = save_aux
             
-            # Get all hooks registered on this module
-            for hook_id, hook_fn in pipe.unet.up_blocks[2]._forward_hooks.items():
-                # IF i DON'T DELETE IT, CUDA OUT OF MEMORY -> the hook is still registered with save_aux=True and it keeps appending data
-                del pipe.unet.up_blocks[2]._forward_hooks[hook_id]
+            # # Get all hooks registered on this module
+            # for hook_id, hook_fn in pipe.unet.up_blocks[2]._forward_hooks.items():
+            #     # IF i DON'T DELETE IT, CUDA OUT OF MEMORY -> the hook is still registered with save_aux=True and it keeps appending data
+            #     del pipe.unet.up_blocks[2]._forward_hooks[hook_id]
             
-            # pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="kwargs", save_aux=save_aux, kwargs_key="hidden_states"), with_kwargs=True)
-            pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="output", save_aux=save_aux), with_kwargs=True)
+            # # pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="kwargs", save_aux=save_aux, kwargs_key="hidden_states"), with_kwargs=True)
+            # pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="output", save_aux=save_aux), with_kwargs=True)
                 
             print("SELF-GUIDANCE")
             out = pipe(prompt=[prompt], generator=generator, sg_grad_wt=sg_grad_wt, sg_edits=sg_edits,
@@ -782,11 +788,11 @@ def start_multiprocessing(attn_greenlist, prompts, seeds,
     print(f"Number of GPUs available: {num_gpus}")
 
     # TODO: UNCOMMENT THIS FOR SIEGER
-    # Prepare data for multiprocessing
-    split_prompts(num_gpus, benchmark, prompts)
-    prompts_folder = os.path.join('data_splits', f'{benchmark}', f"multiprocessing_{num_gpus}")
+    # # Prepare data for multiprocessing
+    # split_prompts(num_gpus, benchmark, prompts)
+    # prompts_folder = os.path.join('data_splits', f'{benchmark}', f"multiprocessing_{num_gpus}")
     
-    # prompts_folder = f"multiprocessing_prompts_3"
+    prompts_folder = f"multiprocessing_prompts_3"
     
     mp.set_start_method('spawn')
     processes = []
@@ -866,9 +872,10 @@ def main(config):
             # "a toilet below a keyboard",
             # "a suitcase below a donut",
             # "a bowl below a sandwich",
-            # "a knife below a spoon"
-            # "a small dog sitting in a park",     
+            # "a knife below a spoon", 
+            
             # "distant shot of the tokyo tower with a massive sun in the sky",        
+            # "a small dog sitting in a park",    
         ]
     
         all_words = [
@@ -982,6 +989,7 @@ def main(config):
     else:
         num_inference_steps = 64
         sg_t_end = 3 * num_inference_steps // 16
+    print("num_inference_steps", num_inference_steps)
     
     visualize_attn_maps = False
     save_attn_maps = False
@@ -1000,7 +1008,7 @@ def main(config):
     else:
         pipe = init_pipeline(device)
         
-        save_aux = True
+        save_aux = False # True
         set_attention_processors(pipe, attn_greenlist, save_aux=save_aux)
         
         self_guidance(pipe, device, attn_greenlist, all_prompts, all_words, seeds, num_inference_steps, sg_t_start, sg_t_end, sg_grad_wt,

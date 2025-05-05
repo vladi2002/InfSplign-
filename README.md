@@ -28,10 +28,13 @@ conda install -c conda-forge scikit-learn
 #### Install Dependencies for Evaluation Benchmarks
 
 ##### T2I-CompBench
+In the comments I have put some of the tricks I used to set this up. Do not run the commented out lines for now cause maybe they are not needed. If when you run the code, you get an error, try uncommenting them. (This is only for the people using the university cluster)
+
 ```
 python -m spacy download en
 
 # T2I-CompBench (DAIC cluster - university)
+
 # conda install -c conda-forge gcc_linux-64=9 gxx_linux-64=9
 # export CC=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-cc
 # export CXX=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-c++
@@ -44,6 +47,8 @@ def __init__(self, src_rect, output_size, interp=Image.BILINEAR, fill=0): -> ins
 ```
 
 ##### GenEvan
+The requirements for this benchmark were incompatible with the dependencies in the code so you have a make a new environment for it. Following these steps should work:
+
 ```
 conda create -n geneval python 3.8.10
 git clone https://github.com/djghosh13/geneval.git
