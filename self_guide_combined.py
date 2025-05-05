@@ -8,7 +8,7 @@ from scipy import ndimage
 
 class SelfGuidanceEdits:
     @staticmethod
-    def _centroid(a):
+    def _centroid_sg(a):
         # print("attn shape _centroid: ", a.shape) # [1, 64, 64, 1]
         # print("min", torch.min(a).item(), "max",  torch.max(a).item())
         
@@ -37,6 +37,28 @@ class SelfGuidanceEdits:
         centroid_y = f(attn_y, y)
         # print("centroid_y: ", centroid_y)
         centroid = torch.stack((centroid_x, centroid_y), -1)  # (n, k, 2)
+        return centroid
+
+    @staticmethod
+    def _centroid(attn_map, object=None):
+        # print(attn_map.shape) [1,64,64,1]
+        H, W = attn_map.shape[-3], attn_map.shape[-2]
+
+        x_coords = torch.linspace(0, 1, W).to(attn_map.device)
+        y_coords = torch.linspace(0, 1, H).to(attn_map.device)
+        y_grid, x_grid = torch.meshgrid(y_coords, x_coords, indexing='ij') # [64,64]
+
+        attn_map = attn_map.squeeze()
+        threshold = attn_map.max() * 0.75  # 90% of the max value
+        mask = attn_map >= threshold
+        masked_attn_map = attn_map * mask
+
+        total = masked_attn_map.sum()
+        x_centroid = (masked_attn_map * x_grid).sum() / total
+        y_centroid = (masked_attn_map * y_grid).sum() / total
+        centroid = torch.stack([x_centroid, y_centroid], dim=-1)  # [2]
+        # print(f"centroid {object}", centroid, centroid.shape)
+
         return centroid
 
     @staticmethod
@@ -186,15 +208,15 @@ class SelfGuidanceEdits:
                 if cluster_objects:
                     attn_map = SelfGuidanceEdits.cluster_attention_maps(attn_map, method="otsu")
                     
-                obs_centroid = SelfGuidanceEdits._centroid(attn_map) # [1,4,2] when multiple indices -> 4
-                obs_centroid = obs_centroid.mean(1, keepdim=True) # [1,1,2]
+                obs_centroid = SelfGuidanceEdits._centroid(attn_map) # , objects[i] # [1,4,2] when multiple indices -> 4
+                # obs_centroid = obs_centroid.mean(1, keepdim=True) # [1,1,2]
                 centroids.append(obs_centroid)
                 
-                if plot_centroid:
-                    plot_attention_map(attn_map, timestep+1, module_name, 
-                                    centroid=obs_centroid, object=objects[i], 
-                                    loss_type=loss_type, loss_num=loss_num, 
-                                    prompt=prompt, margin=margin, alpha=alpha)
+                # if plot_centroid:
+                #     plot_attention_map(attn_map, timestep+1, module_name,
+                #                     centroid=obs_centroid, object=objects[i],
+                #                     loss_type=loss_type, loss_num=loss_num,
+                #                     prompt=prompt, margin=margin, alpha=alpha)
 
                 if self_guidance_mode:
                     tgt_centroid = shift.reshape((1,) * (obs_centroid.ndim - shift.ndim) + shift.shape)
@@ -335,14 +357,14 @@ class SelfGuidanceEdits:
             logger.info("y1: %s | y2: %s", obj1_y.item(), obj2_y.item())
         
         loss = 0
-        if "left" in relationship or "right" in relationship:
-            if "left" in relationship:
+        if relationship in ["to the left of", "to the right of", "on the left of", "on the right of", "left of", "right of", "near", "on side of", "next to"]:
+            if relationship in ["to the left of", "on the left of", "left of", "near", "on side of"]:
                 if loss_type == "sigmoid":
                     difference_x = obj1_x - obj2_x
                 elif loss_type in ["relu", "squared_relu", "gelu"]:
                     difference_x = obj2_x - obj1_x
                 
-            if "right" in relationship:
+            if relationship in ["to the right of", "on the right of", "right of", "next to"]:
                 if loss_type == "sigmoid":
                     difference_x = obj2_x - obj1_x
                 elif loss_type in ["relu", "squared_relu", "gelu"]:
@@ -373,14 +395,14 @@ class SelfGuidanceEdits:
             # loss = loss_horizontal + lambda_param * loss_vertical_1
             # loss = loss_horizontal + lambda_param * loss_vertical_2
         
-        if "above" in relationship or "top" in relationship or "below" in relationship or "bottom" in relationship:
-            if "above" in relationship or "top" in relationship:
+        if relationship in ["above", "below", "on the top of", "on the bottom of"]: #"above" in relationship or "top" in relationship or "below" in relationship or "bottom" in relationship:
+            if relationship in ["above", "on the top of"]:
                 if loss_type == "sigmoid":
                     difference_y = obj1_y - obj2_y # y increases downwards in the image
                 elif loss_type in ["relu", "squared_relu", "gelu"]:
                     difference_y = obj2_y - obj1_y
                 
-            if "below" in relationship or "bottom" in relationship:
+            if relationship in ["below", "on the bottom of"]:
                 if loss_type == "sigmoid":
                     difference_y = obj2_y - obj1_y
                 elif loss_type in ["relu", "squared_relu", "gelu"]:
@@ -414,3 +436,72 @@ class SelfGuidanceEdits:
 
 
  # @staticmethod
+    # def shape(attn, i, tgt, idxs=None, rot=0., sy=1., sx=1., dy=0., dx=0., thresh=True, rsz=None, L2=False, two_objects=False):
+    #     attn = attn[i]
+    #     tgt_attn = tgt[i].to(attn.device)
+
+    #     if idxs is not None:
+    #         attn = attn[..., idxs]
+    #         tgt_attn = tgt_attn[..., idxs]
+    #     if rsz:
+    #         attn = TF.resize(attn.permute(0, 3, 1, 2), rsz, antialias=True).permute(0, 2, 3, 1)
+    #         tgt_attn = TF.resize(tgt_attn.permute(0, 3, 1, 2), rsz, antialias=True).permute(0, 2, 3, 1)
+    #     if thresh:
+    #         attn = SelfGuidanceEdits._attn_diff_norm(attn) # not hard threshold
+    #         tgt_attn = SelfGuidanceEdits._attn_diff_norm(tgt_attn, hard=True)
+        
+    #     # THIS PART IS MANIPULATING THE POSITION THROUGH THE SHAPE
+    #     # FORMULA FROM THE PAPER - EQ. 9
+    #     transform = rot != 0 or any(_ != 1. for _ in [sy, sx, dy, dx])
+        
+    #     # SETTING IT TO FALSE CAUSE WE'RE USING EQ. 17
+    #     transform = True
+        
+    #     if transform:
+    #         ns, hs, ws, ks = tgt_attn.shape
+    #         dev = attn.device
+    #         n, h, w, k = torch.meshgrid(torch.arange(ns), torch.arange(ws),
+    #                                     torch.arange(hs), torch.arange(ks), indexing='ij')
+    #         n, h, w, k = n.to(dev), h.to(dev), w.to(dev), k.to(dev)
+    #         # centroid
+    #         c = SelfGuidanceEdits._centroid(attn)
+    #         ch = c[..., 1][:, None, None] * hs
+    #         cw = c[..., 0][:, None, None] * ws
+    #         # object centric coord system
+    #         h = h - ch
+    #         w = w - cw
+    #         # rotate
+    #         angle_deg_cw = rot
+    #         th = angle_deg_cw * math.pi / 180
+    #         wh = torch.stack((w, h), -1)[..., None]
+    #         R = torch.tensor([[math.cos(th), math.sin(th)], [math.sin(-th), math.cos(th)]]).to(dev)
+    #         wh = (R @ wh)[..., 0]
+    #         w = wh[..., 0]
+    #         h = wh[..., 1]
+    #         # resize
+    #         h = h / sy
+    #         w = w / sx
+    #         # shift
+    #         y_shift = dy * hs * sy
+    #         x_shift = dx * ws * sx
+    #         h = h - y_shift
+    #         w = w - x_shift
+    #         h = h + ch
+    #         w = w + cw
+
+    #         h_normalized = (2 * h / (hs - 1)) - 1
+    #         w_normalized = (2 * w / (ws - 1)) - 1
+    #         coords = torch.stack((w_normalized, h_normalized), dim=-1)
+    #         coords_unnorm = torch.stack((w, h), dim=-1)
+
+    #         coords = coords[:, :, :, 0, :]
+    #         coords_unnorm = coords_unnorm[:, :, :, 0, :]
+
+    #         # Collapse the batch_size, num_tokens dimension and set num_channels=1 for grid sampling
+    #         tgt_attn = einops.rearrange(tgt_attn, 'n h w k -> n k h w')
+    #         tgt_attn = torch.nn.functional.grid_sample(tgt_attn, coords, mode='bilinear', align_corners=False)
+    #         tgt_attn = einops.rearrange(tgt_attn, 'n k h w -> n h w k')
+    #     loss = SelfGuidanceEdits.compute_loss(L2, attn, tgt_attn)
+    #     return [loss]
+    #     # if L2: return (0.5 * (attn - tgt_attn) ** 2).mean()
+    #     # return (attn - tgt_attn).abs().mean()

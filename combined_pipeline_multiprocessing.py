@@ -524,14 +524,14 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   save_dir_name="sdxl-self-guidance-1", vocab_spatial=[], cluster_objects=False, 
                   loss_num="", alpha=1., self_guidance_mode=False, loss_type="sigmoid",
                   plot_centroid=False, save_aux=False, two_objects=False, weight_combinations=None,
-                  do_multiprocessing=False, img_id="", update_latents=False, benchmark=""):
+                  do_multiprocessing=False, img_id="", update_latents=False, benchmark=None):
     print("num_images_per_prompt", num_images_per_prompt)
     
     if do_multiprocessing:
         save_path = os.path.join("images", "self-guidance-relu3")
         os.makedirs(save_path, exist_ok=True)
     # TODO: and do_multiprocessing
-    elif benchmark == "t2i" or benchmark == "geneval":
+    elif benchmark is not None:
         save_path = os.path.join("images", save_dir_name)
         os.makedirs(save_path, exist_ok=True)
     else:
@@ -560,7 +560,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
             shift = []
         print("shift: ", shift)
 
-        if do_multiprocessing or benchmark == "t2i" or benchmark == "geneval":
+        if do_multiprocessing or benchmark is not None:
             words = all_words[prompt]
         else:
             for word_list in all_words:
@@ -576,8 +576,8 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                 seed = seeds[0]
             print("seed", seed)
         
-            if benchmark == "t2i" or benchmark == "geneval" or benchmark == "visor":
-                filename = f"{prompt}_{img_id}_{i}.png"
+            if benchmark is not None:
+                filename = f"{prompt}_{i}.png"
             else:            
                 filename = f"{prompt}_{img_id}_seed_{seed}_multi_{do_multiprocessing}_weight_grad_{sg_grad_wt}_num_steps_{num_inference_steps}_appearance_{appearance_weight}_centroid_{centroid_weight}_size_{size_weight}_shape_{shape_weight}.png"
             
@@ -740,6 +740,7 @@ def get_config():
     parser.add_argument("--do_multiprocessing", default=False)
     parser.add_argument("--update_latents", default=False)
     parser.add_argument("--img_id", default="")
+    parser.add_argument("--json_filename", default=None)
     
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -819,8 +820,7 @@ def start_multiprocessing(attn_greenlist, prompts, seeds,
     for p in processes:
         p.join()
 
-
-def main(config):
+def generate_images(config):
     # log_memory_usage()
       
     model = config.model
@@ -837,6 +837,7 @@ def main(config):
     update_latents = bool(config.update_latents)
     img_id = config.img_id
     benchmark = config.benchmark
+    json_filename = config.json_filename
     
     print("L2_norm: ", L2_norm)
     print("self_guidance_mode: ", self_guidance_mode)
@@ -854,16 +855,16 @@ def main(config):
     # MY INTERACTIVE TESTS
     if benchmark is None:
         all_prompts = [
-            # "a cake to the left of a tv",  
-            # "a cake to the right of a tv",
+            "a cake to the left of a tv",  
+            "a cake to the right of a tv",
             "a cake above a tv",
-            # "a cake below a tv",
-            # "a person to the left of a bicycle",
-            # "a potted plant to the left of a clock",
-            # "a kite to the left of a tv",
-            # "a skateboard to the right of a sheep",
-            # "a bottle to the right of a handbag",
-            # "a giraffe to the right of a book",
+            "a cake below a tv",
+            "a person to the left of a bicycle",
+            "a potted plant to the left of a clock",
+            "a kite to the left of a tv",
+            "a skateboard to the right of a sheep",
+            "a bottle to the right of a handbag",
+            "a giraffe to the right of a book",
             # "a sink to the right of an umbrella",
             # "a snowboard above a car",
             # "an apple above a dog",
@@ -900,6 +901,7 @@ def main(config):
         ]    
         
         seeds = [42]
+        num_inference_steps = 64 # 256
         num_images_per_prompt = 1        
         save_dir_name = model
         vocab_spatial = ["to the left of", "to the right of", "above", "below"]        
@@ -911,12 +913,11 @@ def main(config):
         }
         
     elif benchmark == "t2i":
-        with open(os.path.join('json', 't2i_objects.json'), 'r') as f:
+        with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
             all_words = json.load(f)
         all_prompts = all_words.keys()
         num_images_per_prompt = 10
         seeds = list(range(42, 42+num_images_per_prompt))
-        save_dir_name = f"{model}_t2i-{img_id}"
         vocab_spatial = ['on side of', 'next to', 'near', 'on the left of', 'on the right of', 'on the bottom of', 'on the top of']
         shifts = {
             "on the left of": [(0., 0.5), (1., 0.5)],
@@ -928,9 +929,8 @@ def main(config):
             "near": [(0.25, 0.5), (0.75, 0.5)] # left
         }
                 
-    # TODO: TEST THIS
     elif benchmark == "visor":
-        with open(os.path.join('json', 'visor_3160.json'), 'r') as f:
+        with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
             visor_data = json.load(f)
             
         all_prompts = []
@@ -939,11 +939,8 @@ def main(config):
             prompt = data['text']
             all_prompts.append(prompt)            
             all_words[prompt] = [data['obj_1_attributes'][0], data["obj_2_attributes"][0]]
-        print("all_prompts len", len(all_prompts))
-        print("all_words len", len(all_words))
         
         seeds = [42]
-        save_dir_name = f"{model}_visor-{img_id}"
         vocab_spatial = ["to the left of", "to the right of", "above", "below"]
         num_images_per_prompt = 4
         shifts = {
@@ -954,11 +951,10 @@ def main(config):
         }
 
     elif benchmark == "geneval":
-        with open(os.path.join('json', 'geneval_objects.json'), 'r') as f:
+        with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
             all_words = json.load(f)
         all_prompts = all_words.keys()
         seeds = [42]
-        save_dir_name = f"{model}_geneval-{img_id}"
         num_images_per_prompt = 4
         vocab_spatial = ['above', 'below', 'left of', 'right of']
         shifts = {
@@ -967,6 +963,10 @@ def main(config):
             "above": [(0.5, 0), (0.5, 1)],
             "below": [(0.5, 1), (0.5, 0)]
         }
+    
+    if benchmark is not None:
+        save_dir_name = os.path.join(benchmark, f"{model}_{img_id}")
+    print("save_dir_name", save_dir_name)
     
     attn_greenlist = [
         "up_blocks.0.attentions.1.transformer_blocks.1.attn2",
@@ -983,6 +983,7 @@ def main(config):
     
     sg_loss_rescale = 1000.  # to avoid numerical underflow, scale loss by this amount and then divide gradients after backprop
     sg_t_start = 0
+
     if loss_type is not None:
         num_inference_steps = 100
         sg_t_end = 25
@@ -1019,10 +1020,33 @@ def main(config):
             loss_type=loss_type, margin=margin, plot_centroid=plot_centroid, two_objects=two_objects, 
             weight_combinations=weight_combinations, do_multiprocessing=do_multiprocessing, img_id=img_id,
             update_latents=update_latents, benchmark=benchmark)
+        
+    if benchmark == "visor":
+        run_visor_evaluation(config)
     
     # log_memory_usage()
 
+
+def run_visor_evaluation(config, relationship=None):
+    model = config.model
+    json_filename = config.json_filename
+    img_id = config.img_id
+    model_name = f"{model}_{img_id}"
+    
+    with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
+        prompts_data = json.load(f)
+    
+    obj_det_ann_path = os.path.join('objdet_results', 'visor', model_name, f'{json_filename}.json')
+    if not os.path.isfile(obj_det_ann_path):
+        processor, obj_det_model = initialize_object_detection_model(config)
+        create_object_detection_annotations(config, prompts_data, processor, obj_det_model, relationship=relationship)  # verbose=True -> print the bounding boxes
+    obj_det_ann_natural = load_object_detection_ann(config, relationship=relationship)
+        
+    visor_table = []
+    visor_table.append(evaluate(obj_det_ann_natural, prompts_data, model_name))
+    show_visor_results(visor_table)
+    
     
 if __name__ == "__main__":
     config = get_config()
-    main(config)
+    generate_images(config)
