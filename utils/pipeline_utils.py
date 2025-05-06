@@ -76,9 +76,13 @@ def draw_bounding_boxes(image, boxes, labels):
     return image
 
 
-def create_object_detection_annotations(config, prompts_data, processor, model, baseline, json_filename, verbose=False, relationship=None):
+def create_object_detection_annotations(config, prompts_data, processor, model, verbose=False, relationship=None):
     results = {}
     items = 0
+    
+    model_type = config.img_id
+    baseline = config.model
+    json_filename = config.json_filename
     
     # with open(f'objdet_results/{baseline}/{json_filename}.json', 'w') as f:
     #     json_file = json.load(f)
@@ -95,16 +99,13 @@ def create_object_detection_annotations(config, prompts_data, processor, model, 
         for i in range(4):  # change depending on the use case range(1, 51)
             img_id = "{}_{}".format(uniq_id, i)
             if relationship:
-                impath = os.path.join("images", baseline, relationship, "{}.png".format(img_id))
+                impath = os.path.join("images", "visor", baseline, relationship, "{}.png".format(img_id))
                 # print(relationship, impath)
             else:
-                impath = os.path.join("images", baseline, "{}.png".format(img_id))
+                impath = os.path.join("images", "visor", f"{baseline}_{model_type}", "{}.png".format(img_id))
                 
-            # impath = os.path.join("images", baseline, json_filename, "{}.png".format(img_id)) # "../images"
-
             # not all images are generated yet !!!!!!!!!
             if not os.path.exists(impath):
-                print(impath)
                 continue
 
             im = Image.open(impath)
@@ -137,22 +138,29 @@ def create_object_detection_annotations(config, prompts_data, processor, model, 
         print(items)
 
     # REWROTE
-    os.makedirs(os.path.join('objdet_results', 'visor'), exist_ok=True)
-    if relationship:
-        with open(os.path.join('objdet_results', 'visor', baseline, relationship, f'{json_filename}.json'), 'w') as f:
-            json.dump(results, f, indent=4)
-    else:
-        with open(os.path.join('objdet_results', 'visor', baseline, f'{json_filename}.json'), 'w') as f:
-            json.dump(results, f, indent=4)
+    save_dir = os.path.join('objdet_results', 'visor', f"{baseline}_{model_type}")
+    os.makedirs(save_dir, exist_ok=True)
+    
+    # if relationship:
+    #     with open(os.path.join('objdet_results', 'visor', baseline, relationship, f'{json_filename}.json'), 'w') as f:
+    #         json.dump(results, f, indent=4)
+    # else:
+    
+    with open(os.path.join(save_dir, f'{json_filename}.json'), 'w') as f:
+        json.dump(results, f, indent=4)
 
 
-def load_object_detection_ann(model, json_file, relationship=None):
+def load_object_detection_ann(config, relationship=None):
     # REWROTE
+    model = f"{config.model}_{config.img_id}"
+    json_file = config.json_filename
+    
+    save_dir = os.path.join('objdet_results', 'visor', model)
     if relationship:
-        with open(os.path.join('objdet_results', 'visor', model, relationship, f'{json_file}.json'), 'r') as f:
+        with open(os.path.join(save_dir, relationship, f'{json_file}.json'), 'r') as f:
             obj_det_annotations = json.load(f)
     else:
-        with open(os.path.join('objdet_results', 'visor', model, f'{json_file}.json'), 'r') as f:
+        with open(os.path.join(save_dir, f'{json_file}.json'), 'r') as f:
             obj_det_annotations = json.load(f)
             
     # new_obj_det_annotations = {key: data for key, data in obj_det_annotations.items() if not " and " in data["text"]}

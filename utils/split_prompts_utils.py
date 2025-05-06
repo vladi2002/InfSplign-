@@ -69,7 +69,7 @@ def define_natural_unnatural_prompt_split(data, object_categories):
 
 
 def create_prompt_split():
-    with open('../json_files/text_spatial_rel_phrases.json', 'r') as f:
+    with open('../text_spatial_rel_phrases.json', 'r') as f:
         text_data = json.load(f)
 
     with open('../object_categories.json', 'r') as f:

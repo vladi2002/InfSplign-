@@ -13,7 +13,6 @@ module use /opt/insy/modulefiles
 module load cuda/10.0 cudnn/10.0-7.4.2.24
 
 # Sieger doesn't need this (but Yanbo does and should change this)
-#export HF_HOME=/tudelft.net/staff-umbrella/StudentsCVlab/vchatalbasheva/hf_cache
+export HF_HOME=/tudelft.net/staff-umbrella/StudentsCVlab/vchatalbasheva/hf_cache
 
-# Here the command changes based on the run:
-srun python combined_pipeline_multiprocessing.py --do_multiprocessing True --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id self_guidance_relu
+srun python combined_pipeline_multiprocessing.py --do_multiprocessing True --benchmark visor --json_filename visor_3160 --model sdxl --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id relu

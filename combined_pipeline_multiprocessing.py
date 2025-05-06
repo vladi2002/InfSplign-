@@ -527,12 +527,8 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   do_multiprocessing=False, img_id="", update_latents=False, benchmark=None):
     print("num_images_per_prompt", num_images_per_prompt)
     
-    if do_multiprocessing:
-        save_path = os.path.join("images", "self-guidance-relu3")
-        os.makedirs(save_path, exist_ok=True)
-    # TODO: and do_multiprocessing
-    elif benchmark is not None:
-        save_path = os.path.join("images", save_dir_name)
+    if benchmark is not None or do_multiprocessing:
+        save_path = os.path.join("images", save_dir_name) # THIS BROKE NOW BECAUSE i AM tESTING IT
         os.makedirs(save_path, exist_ok=True)
     else:
         save_path = ""
@@ -576,7 +572,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                 seed = seeds[0]
             print("seed", seed)
         
-            if benchmark is not None:
+            if benchmark is not None or do_multiprocessing:
                 filename = f"{prompt}_{i}.png"
             else:            
                 filename = f"{prompt}_{img_id}_seed_{seed}_multi_{do_multiprocessing}_weight_grad_{sg_grad_wt}_num_steps_{num_inference_steps}_appearance_{appearance_weight}_centroid_{centroid_weight}_size_{size_weight}_shape_{shape_weight}.png"
@@ -753,13 +749,13 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                L2_norm=False, shifts=[], num_images_per_prompt=1, 
                vocab_spatial=[], loss_num=1, alpha=1, loss_type="relu", margin=0.1,
                self_guidance_mode=False, two_objects=False, plot_centroid=False, weight_combinations=None,
-               do_multiprocessing=False, img_id="", update_latents=False):
+               do_multiprocessing=False, img_id="", update_latents=False, save_dir_name=""):
     torch.cuda.set_device(gpu_id)
     device = torch.device(f"cuda:{gpu_id}")
     
     pipe = init_pipeline(device) 
     
-    save_aux = True
+    save_aux = False # True
     set_attention_processors(pipe, attn_greenlist, save_aux=save_aux)
     
     self_guidance(pipe, device, attn_greenlist, all_prompts, all_words, seeds, num_inference_steps,
@@ -773,15 +769,16 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
         plot_centroid=plot_centroid, two_objects=two_objects,
         weight_combinations=weight_combinations,
         do_multiprocessing=do_multiprocessing, img_id=img_id,
-        update_latents=update_latents)
+        update_latents=update_latents, save_dir_name=save_dir_name)
 
 
-def start_multiprocessing(attn_greenlist, prompts, seeds, 
+def start_multiprocessing(attn_greenlist, json_filename, seeds, 
         num_inference_steps, sg_t_start, sg_t_end, sg_grad_wt, sg_loss_rescale,
         L2_norm, shifts, num_images_per_prompt, vocab_spatial, 
         loss_num, alpha, loss_type, margin, self_guidance_mode, 
         two_objects, plot_centroid, weight_combinations,
-        do_multiprocessing, img_id, update_latents, benchmark):
+        do_multiprocessing, img_id, update_latents, benchmark,
+        save_dir_name):
     
     # MULTIPROCESSING
     # SHELL
@@ -789,16 +786,17 @@ def start_multiprocessing(attn_greenlist, prompts, seeds,
     print(f"Number of GPUs available: {num_gpus}")
 
     # TODO: UNCOMMENT THIS FOR SIEGER
-    # # Prepare data for multiprocessing
-    # split_prompts(num_gpus, benchmark, prompts)
-    # prompts_folder = os.path.join('data_splits', f'{benchmark}', f"multiprocessing_{num_gpus}")
+    # Prepare data for multiprocessing
+    split_prompts(num_gpus, benchmark, json_filename)
+    prompts_folder = os.path.join('data_splits', f'{benchmark}', f"multiprocessing_{num_gpus}")
     
-    prompts_folder = f"multiprocessing_prompts_3"
+    # prompts_folder = f"multiprocessing_prompts_3"
     
     mp.set_start_method('spawn')
     processes = []
     for gpu_id in range(num_gpus):
-        print("THIS IS GPU", gpu_id)        
+        print("THIS IS GPU", gpu_id)
+        
         with open(os.path.join(prompts_folder, f'prompts_part_{gpu_id}.json'), 'r') as f:
             all_words = json.load(f)
         
@@ -813,7 +811,7 @@ def start_multiprocessing(attn_greenlist, prompts, seeds,
                                                 L2_norm, shifts, num_images_per_prompt, vocab_spatial, 
                                                 loss_num, alpha, loss_type, margin, self_guidance_mode,
                                                 two_objects, plot_centroid, weight_combinations,
-                                                do_multiprocessing, img_id, update_latents))
+                                                do_multiprocessing, img_id, update_latents, save_dir_name))
         p.start()
         processes.append(p)
 
@@ -983,7 +981,6 @@ def generate_images(config):
     
     sg_loss_rescale = 1000.  # to avoid numerical underflow, scale loss by this amount and then divide gradients after backprop
     sg_t_start = 0
-
     if loss_type is not None:
         num_inference_steps = 100
         sg_t_end = 25
@@ -999,12 +996,13 @@ def generate_images(config):
         
     if do_multiprocessing:
         start_multiprocessing(
-            attn_greenlist, all_prompts, seeds, num_inference_steps, 
+            attn_greenlist, json_filename, seeds, num_inference_steps, 
             sg_t_start, sg_t_end, sg_grad_wt, sg_loss_rescale,
             L2_norm, shifts, num_images_per_prompt, vocab_spatial, 
             loss_num, alpha, loss_type, margin, self_guidance_mode, 
             two_objects, plot_centroid, weight_combinations,
-            do_multiprocessing, img_id, update_latents, benchmark)
+            do_multiprocessing, img_id, update_latents, benchmark,
+            save_dir_name)
     
     else:
         pipe = init_pipeline(device)
@@ -1021,7 +1019,7 @@ def generate_images(config):
             weight_combinations=weight_combinations, do_multiprocessing=do_multiprocessing, img_id=img_id,
             update_latents=update_latents, benchmark=benchmark)
         
-    if benchmark == "visor":
+    if benchmark == "visor" and not do_multiprocessing:
         run_visor_evaluation(config)
     
     # log_memory_usage()
@@ -1050,3 +1048,5 @@ def run_visor_evaluation(config, relationship=None):
 if __name__ == "__main__":
     config = get_config()
     generate_images(config)
+
+    run_visor_evaluation(config)
