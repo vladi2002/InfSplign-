@@ -425,6 +425,7 @@ class SelfGuidanceSDXLPipeline(StableDiffusionXLPipeline):
                             for edit in edits: # dict inside 'attn' & ('last_attn', 'last_feats')
                                 wt = edit.get('weight', 1.)
                                 alpha = edit.get('alpha', 1.)
+                                centorid_type = edit.get('centorid_type', None)
                                 function = edit.get('function', None)
                                 words = edit['words']
                                 if wt:
@@ -442,7 +443,7 @@ class SelfGuidanceSDXLPipeline(StableDiffusionXLPipeline):
                                                             L2=L2_norm, two_objects=two_objects, plot_centroid=plot_centroid,
                                                             loss_type=loss_type, loss_num=loss_num, alpha=alpha, margin=margin,
                                                             self_guidance_mode=self_guidance_mode, objects=words, prompt=prompt[0],
-                                                            module_name=module_name, relationship=relationship)
+                                                            module_name=module_name, relationship=relationship, centroid_type=centorid_type)
                                         lst1.extend(result)
                                         
                                     edit_loss1 = torch.stack(lst1).mean()
@@ -520,7 +521,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   save_dir_name="sdxl-self-guidance-1", vocab_spatial=[], cluster_objects=False, 
                   loss_num="", alpha=1., self_guidance_mode=False, loss_type="sigmoid",
                   plot_centroid=False, save_aux=False, two_objects=False, weight_combinations=None,
-                  do_multiprocessing=False, img_id="", update_latents=False, benchmark=None):
+                  do_multiprocessing=False, img_id="", update_latents=False, benchmark=None, centroid_type="sg"):
     print("num_images_per_prompt", num_images_per_prompt)
     
     if benchmark is not None or do_multiprocessing:
@@ -636,6 +637,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                         "function": "centroid",	
                         'spatial': relationship,
                         'alpha': alpha,
+                        'centorid_type': centroid_type,
                         'kwargs': {
                             'shifts': shift,
                             'relative': False
@@ -733,6 +735,7 @@ def get_config():
     parser.add_argument("--update_latents", default=False)
     parser.add_argument("--img_id", default="")
     parser.add_argument("--json_filename", default=None)
+    parser.add_argument("--centroid_type", default="sg")
     
     # t2i-comp-bench
     parser.add_argument("--port", default=2)
@@ -752,7 +755,7 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                L2_norm=False, shifts=[], num_images_per_prompt=1, 
                vocab_spatial=[], loss_num=1, alpha=1, loss_type="relu", margin=0.1,
                self_guidance_mode=False, two_objects=False, plot_centroid=False, weight_combinations=None,
-               do_multiprocessing=False, img_id="", update_latents=False, save_dir_name=""):
+               do_multiprocessing=False, img_id="", update_latents=False, save_dir_name="", centroid_type="sg"):
     torch.cuda.set_device(gpu_id)
     device = torch.device(f"cuda:{gpu_id}")
     
@@ -772,7 +775,8 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
         plot_centroid=plot_centroid, two_objects=two_objects,
         weight_combinations=weight_combinations,
         do_multiprocessing=do_multiprocessing, img_id=img_id,
-        update_latents=update_latents, save_dir_name=save_dir_name)
+        update_latents=update_latents, save_dir_name=save_dir_name, 
+        centroid_type=centroid_type)
 
 
 def start_multiprocessing(attn_greenlist, json_filename, seeds, 
@@ -781,7 +785,7 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
         loss_num, alpha, loss_type, margin, self_guidance_mode, 
         two_objects, plot_centroid, weight_combinations,
         do_multiprocessing, img_id, update_latents, benchmark,
-        save_dir_name):
+        save_dir_name, centroid_type):
     
     # MULTIPROCESSING
     # SHELL
@@ -815,7 +819,7 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                                                 L2_norm, shifts, num_images_per_prompt, vocab_spatial, 
                                                 loss_num, alpha, loss_type, margin, self_guidance_mode,
                                                 two_objects, plot_centroid, weight_combinations,
-                                                do_multiprocessing, img_id, update_latents, save_dir_name))
+                                                do_multiprocessing, img_id, update_latents, save_dir_name, centroid_type))
         p.start()
         processes.append(p)
 
@@ -841,6 +845,7 @@ def generate_images(config):
     img_id = config.img_id
     benchmark = config.benchmark
     json_filename = config.json_filename
+    centroid_type = config.centroid_type
     
     print("L2_norm: ", L2_norm)
     print("self_guidance_mode: ", self_guidance_mode)
@@ -854,6 +859,8 @@ def generate_images(config):
     print("update_latents: ", update_latents)
     print("img_id: ", img_id)
     print("benchmark: ", benchmark)
+    print("json_filename: ", json_filename)
+    print("centroid_type: ", centroid_type)
     
     # MY INTERACTIVE TESTS
     if benchmark is None:
@@ -1013,7 +1020,7 @@ def generate_images(config):
             loss_num, alpha, loss_type, margin, self_guidance_mode, 
             two_objects, plot_centroid, weight_combinations,
             do_multiprocessing, img_id, update_latents, benchmark,
-            save_dir_name)
+            save_dir_name, centroid_type)
     
     else:
         pipe = init_pipeline(device)
@@ -1028,7 +1035,7 @@ def generate_images(config):
             loss_num=loss_num, alpha=alpha, self_guidance_mode=self_guidance_mode,
             loss_type=loss_type, margin=margin, plot_centroid=plot_centroid, two_objects=two_objects, 
             weight_combinations=weight_combinations, do_multiprocessing=do_multiprocessing, img_id=img_id,
-            update_latents=update_latents, benchmark=benchmark)
+            update_latents=update_latents, benchmark=benchmark, centroid_type=centroid_type)
     
     
 if __name__ == "__main__":

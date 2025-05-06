@@ -184,7 +184,7 @@ class SelfGuidanceEdits:
                  relative=False, idxs=None, L2=False, module_name=None, 
                  cluster_objects=False, prompt=None, relationship="other", 
                  alpha=1, margin=0.5, logger=None, self_guidance_mode=False, plot_centroid=False,
-                 two_objects=False):
+                 two_objects=False, centroid_type="sg"):
         timestep = i
         attn = attn[i]
         tgt_attn = tgt[i].to(attn.device) if tgt is not None else None
@@ -209,8 +209,11 @@ class SelfGuidanceEdits:
                 if cluster_objects:
                     attn_map = SelfGuidanceEdits.cluster_attention_maps(attn_map, method="otsu")
                     
-                obs_centroid = SelfGuidanceEdits._centroid(attn_map) # , objects[i] # [1,4,2] when multiple indices -> 4
-                # obs_centroid = obs_centroid.mean(1, keepdim=True) # [1,1,2]
+                if centroid_type == "sg":
+                    obs_centroid = SelfGuidanceEdits._centroid_sg(attn_map) # , objects[i] # [1,4,2] when multiple indices -> 4
+                    obs_centroid = obs_centroid.mean(1, keepdim=True) # [1,1,2]
+                elif centroid_type == "mean":
+                    obs_centroid = SelfGuidanceEdits._centroid(attn_map)
                 centroids.append(obs_centroid)
                 
                 # if plot_centroid:
