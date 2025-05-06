@@ -792,22 +792,23 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
     # Prepare data for multiprocessing
     split_prompts(num_gpus, benchmark, json_filename)
     prompts_folder = os.path.join('data_splits', f'{benchmark}', f"multiprocessing_{num_gpus}")
-    
-    # prompts_folder = f"multiprocessing_prompts_3"
-    
+        
     mp.set_start_method('spawn')
     processes = []
     for gpu_id in range(num_gpus):
         print("THIS IS GPU", gpu_id)
         
         with open(os.path.join(prompts_folder, f'prompts_part_{gpu_id}.json'), 'r') as f:
-            all_words = json.load(f)
+            all_data = json.load(f)
         
         if benchmark == "visor":
-            prompts = [data['text'] for data in all_words]
-            all_words = {data['text']: [data['obj_1_attributes'][0], data["obj_2_attributes"][0]] for data in all_words}
-        if benchmark == "t2i" or benchmark == "geneval":
-            prompts = all_words.keys()            
+            prompts = [data['text'] for data in all_data]
+            all_words = {data['text']: [data['obj_1_attributes'][0], data["obj_2_attributes"][0]] for data in all_data}
+        if benchmark == "t2i":
+            prompts = [data['prompt'] for data in all_data]
+            all_words = {data['prompt']: [data['objects'][0], data["objects"][0]] for data in all_data} 
+        if benchmark == "geneval":
+            pass
         
         p = mp.Process(target=run_on_gpu, args=(gpu_id, prompts, all_words, attn_greenlist, seeds, 
                                                 num_inference_steps, sg_t_start, sg_t_end, sg_grad_wt, sg_loss_rescale,
@@ -916,8 +917,14 @@ def generate_images(config):
         
     elif benchmark == "t2i":
         with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
-            all_words = json.load(f)
-        all_prompts = all_words.keys()
+            t2i_data = json.load(f)
+        
+        all_prompts, all_words = [], {}
+        for data in t2i_data:
+            prompt = data['prompt']
+            all_prompts.append(prompt)
+            all_words[prompt] = [data['objects'][0], data["objects"][0]]
+        
         num_images_per_prompt = 10
         seeds = list(range(42, 42+num_images_per_prompt))
         vocab_spatial = ['on side of', 'next to', 'near', 'on the left of', 'on the right of', 'on the bottom of', 'on the top of']

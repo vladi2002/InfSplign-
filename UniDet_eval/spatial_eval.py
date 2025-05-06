@@ -331,7 +331,7 @@ def t2i_spatial_score(config, relationship=None):
 
             return avg_score/len(result)
     else:
-        print("correct code!")
+        print("scores already generated - now loading them!")
         im_save_path = os.path.join(save_path, 'annotation_obj_detection_2d')
         if relationship:
             print(relationship)
@@ -348,5 +348,5 @@ def t2i_spatial_score(config, relationship=None):
             with open(os.path.join(im_save_path, 'avg_score.txt'), 'r') as f:
                 avg_score = f.read()
                 avg_score = float(avg_score.split(':')[-1])
-                # print("avg score: ", avg_score)
+                print("avg score: ", avg_score)
             return avg_score
