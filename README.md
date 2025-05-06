@@ -79,3 +79,14 @@ If you want to apply multiprocessing on top of that, run the following command:
 python combined_pipeline_multiprocessing.py --do_multiprocessing True --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id relu
 ```
 
+Running commands for Sieger:
+To generate the images for a subset of 4 prompt from the VISOR dataset, run the following command:
+```
+python combined_pipeline_multiprocessing.py --do_multiprocessing True --benchmark visor --json_filename visor_4 --model sdxl --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id relu
+```
+The code will generate 4 images per prompt, so 16 images in total.
+
+Once, the generation is done, you can compute the metric using the following command:
+```
+python run_evaluation.py --benchmark visor --json_filename visor_4 --model sdxl --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id relu
+```

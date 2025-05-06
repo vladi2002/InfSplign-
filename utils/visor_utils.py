@@ -1,4 +1,6 @@
 import itertools
+import os
+
 import numpy as np
 from tabulate import tabulate
 
@@ -155,7 +157,7 @@ def evaluate(obj_det_ann, prompts_data, model): # t2i_score
     return visor_table_data
 
 
-def show_visor_results(visor_table):
+def show_visor_results(visor_table, config):
     table = tabulate(
             visor_table,
             headers=[
@@ -167,5 +169,8 @@ def show_visor_results(visor_table):
         )
         
     print(table)
-    # with open('sdxl_visor_all_results.txt', 'w') as f:
-    #     f.write(table)
+
+    model = f"{config.model}_{config.img_id}"
+    save_dir = os.path.join('objdet_results', 'visor', model)
+    with open(os.path.join(save_dir, f'visor_table_{config.img_id}.txt'), 'w') as f:
+        f.write(table)

@@ -1,0 +1,50 @@
+[
+    {
+        "unique_id": 15547,
+        "num_objects": 2,
+        "obj_1_attributes": [
+        "toaster"
+        ],
+        "obj_2_attributes": [
+        "zebra"
+        ],
+        "rel_type": "below",
+        "text": "a toaster below a zebra"
+    },
+    {
+        "unique_id": 7541,
+        "num_objects": 2,
+        "obj_1_attributes": [
+        "elephant"
+        ],
+        "obj_2_attributes": [
+        "surfboard"
+        ],
+        "rel_type": "to the left of",
+        "text": "an elephant to the left of a surfboard"
+    },
+    {
+        "unique_id": 21025,
+        "num_objects": 2,
+        "obj_1_attributes": [
+          "couch"
+        ],
+        "obj_2_attributes": [
+          "kite"
+        ],
+        "rel_type": "above",
+        "text": "a couch above a kite"
+    },
+    {
+        "unique_id": 9513,
+        "num_objects": 2,
+        "obj_1_attributes": [
+          "dog"
+        ],
+        "obj_2_attributes": [
+          "bench"
+        ],
+        "rel_type": "to the right of",
+        "text": "a dog to the right of a bench"
+    }
+]
