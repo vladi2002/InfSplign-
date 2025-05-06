@@ -66,28 +66,41 @@ git checkout 2.x
 pip install --user -v -e .
 ```
 
-#### Run
-To run the spatial loss ReLU, run the following command:
-
+#### Run:
+To generate the images, run the following command:
 ```
-python combined_pipeline_multiprocessing.py --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id relu
-```
-
-If you want to apply multiprocessing on top of that, run the following command:
-
-```
-python combined_pipeline_multiprocessing.py --do_multiprocessing True --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id relu
+python combined_pipeline_multiprocessing.py --benchmark <benchmark name> --json_filename <filename> --model sdxl --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id relu
 ```
 
-#### Run (Sieger):
-To generate the images for a subset of 4 prompt from the VISOR dataset, run the following command:
+The same configuration can be run using multiprocessing in this way:
 ```
-python combined_pipeline_multiprocessing.py --do_multiprocessing True --benchmark visor --json_filename visor_4 --model sdxl --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id relu
+python combined_pipeline_multiprocessing.py --do_multiprocessing True --benchmark <benchmark name> --json_filename <filename> --model sdxl --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id relu
 ```
-The code will generate 4 images per prompt, so 16 images in total.
 
 Once, the generation is done, you can compute the metric using the following command:
 ```
-python run_evaluation.py --benchmark visor --json_filename visor_4 --model sdxl --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id relu
+python run_evaluation.py --benchmark <benchmark name> --json_filename <filename> --model sdxl --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id relu
 ```
-Right now, the second command is not working using multiprocessing. (But I might need to change that. I'll let you know once it's done!)
+Evaluation benchmarks are:
+- `visor`: VISOR
+- `t2i`: T2I-CompBench
+- `geneval`: GenEval
+
+The corresponding data files are:
+- VISOR: `text_spatial_rel_phrases`
+- T2I-CompBench: `t2i_prompts`
+- GenEval: `geneval_objects`.
+
+##### Example command for the visor benchmark:
+```
+python combined_pipeline_multiprocessing.py --benchmark visor --json_filename text_spatial_rel_phrases --model sdxl --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id relu
+```
+
+##### Example command for the t2i benchmark:
+```
+python combined_pipeline_multiprocessing.py --do_multiprocessing True --benchmark t2i --json_filename t2i_objects --model sdxl --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id relu
+```
+
+To ensure multiprocessing with multiple GPUs, you can add to the command `--do_multiprocessing True`
+
+##### GenEval is still to be setup

@@ -49,7 +49,8 @@ class SelfGuidanceEdits:
         y_grid, x_grid = torch.meshgrid(y_coords, x_coords, indexing='ij') # [64,64]
 
         attn_map = attn_map.squeeze()
-        threshold = attn_map.max() * 0.75  # 90% of the max value
+        # threshold = attn_map.max() * 0.75  # 75% of the max value
+        threshold = attn_map.mean()
         mask = attn_map >= threshold
         masked_attn_map = attn_map * mask
 
@@ -433,6 +434,3 @@ class SelfGuidanceEdits:
             # loss = loss_vertical + lambda_param * loss_horizontal_1 # 4
             # loss = loss_vertical + lambda_param * loss_horizontal_2 # 5
         return loss    
-
-
- # @staticmethod

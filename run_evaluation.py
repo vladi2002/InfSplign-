@@ -5,6 +5,15 @@ from combined_pipeline_multiprocessing import get_config
 from utils.visor_utils import evaluate, show_visor_results
 from utils.pipeline_utils import load_object_detection_ann, \
     initialize_object_detection_model, create_object_detection_annotations
+from UniDet_eval.spatial_eval import t2i_spatial_score
+
+
+def run_evaluation(config, relationship=None):
+    benchmark = config.benchmark
+    if benchmark == 'visor':
+        run_visor_evaluation(config, relationship=relationship)
+    elif benchmark == 't2i':
+        run_t2i_evaluation(config, relationship=relationship)
 
 
 def run_visor_evaluation(config, relationship=None):
@@ -25,8 +34,13 @@ def run_visor_evaluation(config, relationship=None):
     visor_table = []
     visor_table.append(evaluate(obj_det_ann_natural, prompts_data, model_name))
     show_visor_results(visor_table, config)
+    
+
+def run_t2i_evaluation(config, relationship=None):
+    # t2i_score, num_images = 
+    t2i_spatial_score(config, relationship=relationship)
 
 
 if __name__ == "__main__":
     config = get_config()
-    run_visor_evaluation(config)
+    run_evaluation(config, relationship=None)

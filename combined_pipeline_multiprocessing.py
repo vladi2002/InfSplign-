@@ -16,10 +16,6 @@ import psutil
 import subprocess
 from split_data_multiprocessing import *
 
-from utils.visor_utils import evaluate, show_visor_results
-from utils.pipeline_utils import load_object_detection_ann, \
-    initialize_object_detection_model, create_object_detection_annotations
-
 
 def log_memory_usage():
     # CPU RAM usage
@@ -738,6 +734,13 @@ def get_config():
     parser.add_argument("--img_id", default="")
     parser.add_argument("--json_filename", default=None)
     
+    # t2i-comp-bench
+    parser.add_argument("--port", default=2)
+    parser.add_argument("--confidence-threshold", type=float, default=0.5)
+    parser.add_argument("--outpath", type=str, default="images", help="Path to output score") # experiments/t2i-comp-bench-spatial/
+    parser.add_argument("--complex", type=bool, default=False, help="Prompt is simple structure or in complex category")
+    parser.add_argument("--mode", default="client")
+    
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     args.device = device
@@ -817,6 +820,7 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
 
     for p in processes:
         p.join()
+
 
 def generate_images(config):
     # log_memory_usage()
@@ -1018,35 +1022,8 @@ def generate_images(config):
             loss_type=loss_type, margin=margin, plot_centroid=plot_centroid, two_objects=two_objects, 
             weight_combinations=weight_combinations, do_multiprocessing=do_multiprocessing, img_id=img_id,
             update_latents=update_latents, benchmark=benchmark)
-        
-    # if benchmark == "visor" and not do_multiprocessing:
-    #     run_visor_evaluation(config)
-    
-    # log_memory_usage()
-
-
-# def run_visor_evaluation(config, relationship=None):
-#     model = config.model
-#     json_filename = config.json_filename
-#     img_id = config.img_id
-#     model_name = f"{model}_{img_id}"
-#
-#     with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
-#         prompts_data = json.load(f)
-#
-#     obj_det_ann_path = os.path.join('objdet_results', 'visor', model_name, f'{json_filename}.json')
-#     if not os.path.isfile(obj_det_ann_path):
-#         processor, obj_det_model = initialize_object_detection_model(config)
-#         create_object_detection_annotations(config, prompts_data, processor, obj_det_model, relationship=relationship)  # verbose=True -> print the bounding boxes
-#     obj_det_ann_natural = load_object_detection_ann(config, relationship=relationship)
-#
-#     visor_table = []
-#     visor_table.append(evaluate(obj_det_ann_natural, prompts_data, model_name))
-#     show_visor_results(visor_table, config)
     
     
 if __name__ == "__main__":
     config = get_config()
     generate_images(config)
-
-    # run_visor_evaluation(config)

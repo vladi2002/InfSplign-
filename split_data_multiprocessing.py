@@ -2,7 +2,10 @@ import json
 import os
 
 
-def split_prompts(num_gpus, benchmark, spatial_prompts):
+def split_prompts(num_gpus, benchmark, json_filename):    
+    with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
+        spatial_prompts = json.load(f)
+                   
     print(f"Total number of unique spatial prompts: {len(spatial_prompts)}")
 
     save_dir = os.path.join('data_splits', f'{benchmark}', f"multiprocessing_{num_gpus}")

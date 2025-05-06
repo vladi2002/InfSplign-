@@ -1,2 +1,6 @@
 __pycache__/
 .idea/
+
+images
+objdet_results
+data_splits
