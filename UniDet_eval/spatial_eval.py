@@ -168,32 +168,9 @@ def t2i_spatial_score(config, relationship=None):
                             
                     expanded_obj = list(set(expanded_obj))
 
-                    # obj_bounding_box, obj_labels_dict = get_mask_labels(depth, instance_boxes, instance_id)
-
-                    # obj = []
-                    # for i in range(len(obj_bounding_box)):
-                    #     obj_name = obj_label_map[obj_labels_dict[i]]  
-                    #     obj.append(obj_name)
-                    # print("obj before: ", obj)
-                        
-                    # # some labels from the detector are compound
-                    # expanded_obj = []
-                    # for category in obj:
-                    #     if ',' in category:
-                    #         words = [word.strip() for word in category.split(',')]
-                    #         expanded_obj.extend(words)
-                    #     elif ' and ' in category:
-                    #         words = [word.strip() for word in category.split(' and ')]
-                    #         expanded_obj.extend(words)
-                    #     else:
-                    #         expanded_obj.append(category)
-                    # expanded_obj = list(set(expanded_obj))
-                    # # print("obj after: ", obj)
-
                     img_path_split = test_data[k]['image_path'].split('/')
                     prompt = img_path_split[-1].split('_')[0] # get prompt from file names
                     vocab_spatial = ['on side of', 'next to', 'near', 'on the left of', 'on the right of', 'on the bottom of', 'on the top of','on top of'] #locality words
-                    # vocab_spatial = ['to the left of', 'to the right of', 'above', 'below'] #locality words
 
                     locality = None
                     for word in vocab_spatial:
@@ -316,11 +293,22 @@ def t2i_spatial_score(config, relationship=None):
                     # map_dict['question_id']=int(img_path_split[-1].split('_')[-1].split('.')[0])
                     # map_result.append(map_dict)
 
+                    # Extract serializable information from test_pred
+                    serializable_pred = {}
+                    serializable_pred['image_path'] = test_data[k]['image_path']
+                    serializable_pred['detected_objects'] = obj
+                    serializable_pred['bounding_boxes'] = [box for box in obj_bounding_box]
+                    serializable_pred['scores'] = [score.item() for score in instance_score]
+                    map_result.append(serializable_pred)
+
             im_save_path = os.path.join(save_path, 'annotation_obj_detection_2d')
             os.makedirs(im_save_path, exist_ok=True)
 
             with open(os.path.join(im_save_path, 'vqa_result.json'), 'w') as f:
                 json.dump(result, f)
+                
+            with open(os.path.join(im_save_path, 'obj_det_results.json'), 'w') as f:
+                json.dump(map_result, f)
 
             # avg score
             avg_score = 0
