@@ -74,8 +74,8 @@ class Splign:
                  alpha=1, margin=0.5, logger=None, self_guidance_mode=False, plot_centroid=False,
                  two_objects=False, centroid_type="sg"):
         timestep = i
-        attn = attn[i]
-        tgt_attn = tgt[i].to(attn.device) if tgt is not None else None
+        # attn = attn[i]
+        tgt_attn = tgt.to(attn.device) if tgt is not None else None
 
         if relative: assert tgt_attn is not None
         tgt_attn = tgt_attn if tgt_attn is not None else attn

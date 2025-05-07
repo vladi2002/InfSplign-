@@ -11,7 +11,7 @@ from transformers.models.esm.openfold_utils.tensor_utils import batched_gather
 
 from self_guide_batch import Splign
 from functools import partial
-from attn_processor import SelfGuidanceAttnProcessor2_0, SelfGuidanceAttnProcessor
+from attn_processor import SelfGuidanceAttnProcessor2_0
 from diffusers.models.attention_processor import Attention
 import multiprocessing as mp
 import torch
@@ -272,7 +272,7 @@ class SelfGuidanceSDXLPipeline(StableDiffusionXLPipeline):
         if do_self_guidance:
             for (prompt_text, edits_dict) in zip(prompt, sg_edits):
                 prompt_text_ids = self.tokenizer(prompt_text, return_tensors='np')['input_ids'][0]
-                for edit_key, edits in sg_edits.items():
+                for edit_key, edits in edits_dict.items():
                     for edit in edits:
                         if 'words' not in edit:
                             edit['idxs'] = np.arange(len(prompt_text_ids))
@@ -318,7 +318,7 @@ class SelfGuidanceSDXLPipeline(StableDiffusionXLPipeline):
         # 5. Prepare latent variables
         num_channels_latents = self.unet.config.in_channels
         latents = self.prepare_latents(
-            batch_size, # * num_images_per_prompt
+            batch_size * num_images_per_prompt,
             num_channels_latents,
             height,
             width,
@@ -454,7 +454,9 @@ class SelfGuidanceSDXLPipeline(StableDiffusionXLPipeline):
                                         lst1 = []
 
                                         for module_name, v in key_aux.items():
-                                            v_b = v[b:b+1]
+                                            print("v: ", len(v))
+                                            v_b = v[i][b:b+1]
+                                            print("v_b: ", v_b.shape)
                                             result = apply_edit(v_b, i=i, idxs=edit['idxs'], **edit.get('kwargs', {}),
                                                                 tgt=tgt[module_name] if tgt is not None else None,
                                                                 L2=L2_norm, two_objects=two_objects,
@@ -490,7 +492,6 @@ class SelfGuidanceSDXLPipeline(StableDiffusionXLPipeline):
                         assert not noise_pred.isnan().any()
                     latents.detach()
                     ### END SELF GUIDANCE
-
                 # if do_classifier_free_guidance and guidance_rescale > 0.0:
                 #     # Based on 3.4. in https://arxiv.org/pdf/2305.08891.pdf
                 #     noise_pred = rescale_noise_cfg(noise_pred, noise_pred_text, guidance_rescale=guidance_rescale)
