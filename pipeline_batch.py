@@ -9,7 +9,7 @@ from diffusers.pipelines.stable_diffusion_xl.pipeline_output import StableDiffus
 from torchvision.ops import batched_nms
 from transformers.models.esm.openfold_utils.tensor_utils import batched_gather
 
-from self_guide_combined import SelfGuidanceEdits
+from self_guide_batch import Splign
 from functools import partial
 from attn_processor import SelfGuidanceAttnProcessor2_0, SelfGuidanceAttnProcessor
 from diffusers.models.attention_processor import Attention
@@ -605,7 +605,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                     'attn': [
                         {
                             'words': batched_words[j],
-                            'fn': SelfGuidanceEdits.centroid,
+                            'fn': Splign.centroid,
                             'function': "centroid",
                             'spatial': batched_relationships[j],
                             'alpha': alpha,
