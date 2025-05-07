@@ -561,14 +561,16 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                     words = word_list
                     break
         print("words: ", words)
-        
+
+        if benchmark == "visor" or benchmark == "geneval":
+            seed = seeds[0]
+            generator = torch.Generator(device=device).manual_seed(seed)
         for i in range(num_images_per_prompt):
             if benchmark == "t2i":
                 seed = seeds[i]
-            else:
-                seed = seeds[0]
-            print("seed", seed)
-        
+                print("seed", seed)
+                generator = torch.Generator(device=device).manual_seed(seed)
+
             if benchmark is not None or do_multiprocessing:
                 filename = f"{prompt}_{i}.png"
             else:            
@@ -579,9 +581,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
             
             if os.path.exists(out_filename):
                 continue
-            
-            generator = torch.Generator(device=device).manual_seed(seed)
-            
+
             # save_aux = True
             # # THIS SETS THE SAVE_AUX IN THE PROCESSOR TO TRUE
             # for name, module in pipe.unet.named_modules():
