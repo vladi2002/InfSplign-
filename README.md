@@ -35,6 +35,15 @@ python -m spacy download en
 
 # T2I-CompBench (DAIC cluster - university)
 
+mkdir -p UniDet_eval/experts/expert_weights
+cd UniDet_eval/experts/expert_weights
+wget https://huggingface.co/shikunl/prismer/resolve/main/expert_weights/Unified_learned_OCIM_RS200_6x%2B2x.pth
+wget https://huggingface.co/lllyasviel/ControlNet/resolve/main/annotator/ckpts/dpt_hybrid-midas-501f0c75.pt
+pip install gdown
+gdown https://docs.google.com/uc?id=1C4sgkirmgMumKXXiLOPmCKNTZAc3oVbq
+
+# Here you go back to the UneDet_eval folder
+
 # conda install -c conda-forge gcc_linux-64=9 gxx_linux-64=9
 # export CC=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-cc
 # export CXX=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-c++
