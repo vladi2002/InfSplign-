@@ -525,7 +525,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
     print("num_images_per_prompt", num_images_per_prompt)
     
     if benchmark is not None or do_multiprocessing:
-        save_path = os.path.join("images", save_dir_name) # THIS BROKE NOW BECAUSE i AM tESTING IT
+        save_path = os.path.join("images", save_dir_name)
         os.makedirs(save_path, exist_ok=True)
     else:
         save_path = ""
@@ -565,6 +565,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
         if benchmark == "visor" or benchmark == "geneval":
             seed = seeds[0]
             generator = torch.Generator(device=device).manual_seed(seed)
+
         for i in range(num_images_per_prompt):
             if benchmark == "t2i":
                 seed = seeds[i]
@@ -755,7 +756,8 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                L2_norm=False, shifts=[], num_images_per_prompt=1, 
                vocab_spatial=[], loss_num=1, alpha=1, loss_type="relu", margin=0.1,
                self_guidance_mode=False, two_objects=False, plot_centroid=False, weight_combinations=None,
-               do_multiprocessing=False, img_id="", update_latents=False, save_dir_name="", centroid_type="sg"):
+               do_multiprocessing=False, img_id="", update_latents=False, save_dir_name="", centroid_type="sg",
+               benchmark=None):
     torch.cuda.set_device(gpu_id)
     device = torch.device(f"cuda:{gpu_id}")
     
@@ -776,7 +778,7 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
         weight_combinations=weight_combinations,
         do_multiprocessing=do_multiprocessing, img_id=img_id,
         update_latents=update_latents, save_dir_name=save_dir_name, 
-        centroid_type=centroid_type)
+        centroid_type=centroid_type, benchmark=benchmark)
 
 
 def start_multiprocessing(attn_greenlist, json_filename, seeds, 
@@ -810,7 +812,7 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
             all_words = {data['text']: [data['obj_1_attributes'][0], data["obj_2_attributes"][0]] for data in all_data}
         if benchmark == "t2i":
             prompts = [data['prompt'] for data in all_data]
-            all_words = {data['prompt']: [data['objects'][0], data["objects"][0]] for data in all_data} 
+            all_words = {data['prompt']: [data['objects'][0], data["objects"][1]] for data in all_data} 
         if benchmark == "geneval":
             pass
         
@@ -819,7 +821,8 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                                                 L2_norm, shifts, num_images_per_prompt, vocab_spatial, 
                                                 loss_num, alpha, loss_type, margin, self_guidance_mode,
                                                 two_objects, plot_centroid, weight_combinations,
-                                                do_multiprocessing, img_id, update_latents, save_dir_name, centroid_type))
+                                                do_multiprocessing, img_id, update_latents, save_dir_name, centroid_type,
+                                                benchmark))
         p.start()
         processes.append(p)
 
@@ -930,7 +933,7 @@ def generate_images(config):
         for data in t2i_data:
             prompt = data['prompt']
             all_prompts.append(prompt)
-            all_words[prompt] = [data['objects'][0], data["objects"][0]]
+            all_words[prompt] = [data['objects'][0], data["objects"][1]]
         
         num_images_per_prompt = 10
         seeds = list(range(42, 42+num_images_per_prompt))
