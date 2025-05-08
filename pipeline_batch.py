@@ -8,7 +8,7 @@ import multiprocessing as mp
 from self_guide_batch import Splign
 from split_data_multiprocessing import split_prompts
 from models import SpatialLossSDPipeline, SpatialLossSDXLPipeline
-from utils.model_utils import set_attention_processors, set_attention_processors_sd1_5
+from utils.model_utils import set_attention_processors
 from utils.model_utils import get_model_id
 
 
