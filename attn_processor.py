@@ -1,12 +1,10 @@
 import math
-import torch
 import diffusers
+import torch
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
-from typing import Optional
 from diffusers.models.attention_processor import SlicedAttnProcessor, AttnProcessor, Attention
 
-   
 class SelfGuidanceAttnProcessor:
     r"""
     Default processor for performing attention-related computations.
@@ -93,6 +91,7 @@ class SelfGuidanceAttnProcessor:
         hidden_states = hidden_states / attn.rescale_output_factor
 
         return hidden_states
+
 
 class SelfGuidanceAttnProcessor2_0:
     r"""
