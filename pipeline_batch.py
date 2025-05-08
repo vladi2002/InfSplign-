@@ -11,7 +11,7 @@ from transformers.models.esm.openfold_utils.tensor_utils import batched_gather
 
 from self_guide_batch import Splign
 from functools import partial
-from attn_processor import SelfGuidanceAttnProcessor2_0
+from attn_processor_batch import SelfGuidanceAttnProcessor2_0, SelfGuidanceAttnProcessor
 from diffusers.models.attention_processor import Attention
 import multiprocessing as mp
 import torch
@@ -228,7 +228,6 @@ class SelfGuidanceSDXLPipeline(StableDiffusionXLPipeline):
             margin=0.5,
             plot_centroid=False,
             two_objects=False,
-            relationship=None,
             update_latents=False,
     ):
         # 0. Default height and width to unet
@@ -317,6 +316,7 @@ class SelfGuidanceSDXLPipeline(StableDiffusionXLPipeline):
 
         # 5. Prepare latent variables
         num_channels_latents = self.unet.config.in_channels
+        print("num_images_per_prompt", num_images_per_prompt)
         latents = self.prepare_latents(
             batch_size * num_images_per_prompt,
             num_channels_latents,
@@ -327,6 +327,7 @@ class SelfGuidanceSDXLPipeline(StableDiffusionXLPipeline):
             generator,
             latents,
         )
+        print("latents", latents.shape)
 
         # 6. Prepare extra step kwargs.
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
@@ -439,10 +440,17 @@ class SelfGuidanceSDXLPipeline(StableDiffusionXLPipeline):
 
                                 for edit in edits:  # dict inside 'attn' & ('last_attn', 'last_feats')
                                     wt = edit.get('weight', 1.)
+                                    # print("wt: ", wt)
                                     alpha = edit.get('alpha', 1.)
+                                    # print("alpha: ", alpha)
                                     centorid_type = edit.get('centorid_type', None)
+                                    # print("centorid_type: ", centorid_type)
                                     function = edit.get('function', None)
+                                    # print("function: ", function)
                                     words = edit['words']
+                                    # print("words: ", words)
+                                    relationship = edit.get('spatial', None)
+                                    # print("relationship: ", relationship)
                                     if wt:
                                         tgt = edit.get('tgt')
                                         if tgt is not None:
@@ -454,10 +462,10 @@ class SelfGuidanceSDXLPipeline(StableDiffusionXLPipeline):
                                         lst1 = []
 
                                         for module_name, v in key_aux.items():
-                                            print("v: ", len(v))
-                                            v_b = v[i][b:b+1]
-                                            print("v_b: ", v_b.shape)
-                                            result = apply_edit(v_b, i=i, idxs=edit['idxs'], **edit.get('kwargs', {}),
+                                            # print("v: ", len(v))
+                                            # v_b = v[i][b:b+1]
+                                            # print("attn v_b: ", v_b.shape)
+                                            result = apply_edit(v, b, i=i, idxs=edit['idxs'], **edit.get('kwargs', {}),
                                                                 tgt=tgt[module_name] if tgt is not None else None,
                                                                 L2=L2_norm, two_objects=two_objects,
                                                                 plot_centroid=plot_centroid,
@@ -467,6 +475,7 @@ class SelfGuidanceSDXLPipeline(StableDiffusionXLPipeline):
                                                                 prompt=prompt_b,
                                                                 module_name=module_name, relationship=relationship,
                                                                 centroid_type=centorid_type)
+                                            # print("result: ", result)
                                             lst1.extend(result)
 
                                         edit_loss1 = torch.stack(lst1).mean()
@@ -628,7 +637,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                        cluster_objects=cluster_objects,
                        self_guidance_mode=self_guidance_mode, loss_type=loss_type, loss_num=int(loss_num),
                        plot_centroid=plot_centroid, save_aux=save_aux, two_objects=two_objects,
-                       relationship=relationship, update_latents=update_latents).images
+                       update_latents=update_latents).images
             for img, path in zip(out, out_filenames):
                 img.save(path)
 

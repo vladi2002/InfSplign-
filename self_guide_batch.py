@@ -68,14 +68,20 @@ class Splign:
         return loss
 
     @staticmethod
-    def centroid(attn, i, loss_type=None, loss_num=None, tgt=None, shifts=(0., 0.), objects=[],
+    def centroid(attn, batch_index, i, loss_type=None, loss_num=None, tgt=None, shifts=(0., 0.), objects=[],
                  relative=False, idxs=None, L2=False, module_name=None,
                  cluster_objects=False, prompt=None, relationship="other",
                  alpha=1, margin=0.5, logger=None, self_guidance_mode=False, plot_centroid=False,
-                 two_objects=False, centroid_type="sg"):
-        timestep = i
-        # attn = attn[i]
-        tgt_attn = tgt.to(attn.device) if tgt is not None else None
+                 two_objects=False, centroid_type="sg"):        
+        # print("attn len: ", len(attn))
+        attn = attn[i]
+        # print(f"attn shape at timestep {i}: ", attn.shape) # [batch_size, 64, 64, 1]
+        attn = attn[batch_index:batch_index+1]
+        # print(f"attn shape of batch index {batch_index}: ", attn.shape)  # [1, 64, 64, 1]
+        
+        # print("shifts", shifts)
+               
+        tgt_attn = tgt[i].to(attn.device) if tgt is not None else None
 
         if relative: assert tgt_attn is not None
         tgt_attn = tgt_attn if tgt_attn is not None else attn
@@ -86,8 +92,6 @@ class Splign:
             tgt_attn = tgt_attn[..., idxs]
 
         losses = []
-        # WE INTRODUCED LOSS += -> RUN AGAIN TO SEE IF THERE IS DIFFERENCE
-        # loss = 0
         if two_objects:
             centroids = []
             for i in range(len(shifts)):
@@ -101,12 +105,7 @@ class Splign:
                 elif centroid_type == "mean":
                     obs_centroid = Splign._centroid(attn_map)
                 centroids.append(obs_centroid)
-
-                # if plot_centroid:
-                #     plot_attention_map(attn_map, timestep+1, module_name,
-                #                     centroid=obs_centroid, object=objects[i],
-                #                     loss_type=loss_type, loss_num=loss_num,
-                #                     prompt=prompt, margin=margin, alpha=alpha)
+                # print("centroid", obs_centroid, obs_centroid.shape)
 
                 if self_guidance_mode:
                     tgt_centroid = shift.reshape((1,) * (obs_centroid.ndim - shift.ndim) + shift.shape)
@@ -118,6 +117,7 @@ class Splign:
                 spatial_loss = Splign.spatial_loss(centroids, relationship, loss_type,
                                                               loss_num, alpha=alpha, margin=margin,
                                                               logger=logger)
+                # print("spatial_loss", spatial_loss)
                 losses.append(spatial_loss)
 
         else:
@@ -160,6 +160,7 @@ class Splign:
                     difference_x = obj2_x - obj1_x
                 elif loss_type in ["relu", "squared_relu", "gelu"]:
                     difference_x = obj1_x - obj2_x
+                    # print("difference_x", difference_x)
 
             if loss_type == "sigmoid":
                 loss_horizontal = torch.sigmoid(alpha * difference_x)

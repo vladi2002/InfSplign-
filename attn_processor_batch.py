@@ -5,8 +5,7 @@ import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 from typing import Optional
 from diffusers.models.attention_processor import SlicedAttnProcessor, AttnProcessor, Attention
-
-   
+    
 class SelfGuidanceAttnProcessor:
     r"""
     Default processor for performing attention-related computations.
@@ -157,8 +156,8 @@ class SelfGuidanceAttnProcessor2_0:
             scores_ = TF.resize(scores_.permute(0, 3, 1, 2), _SG_RES, antialias=True).permute(0, 2, 3, 1)
         try:
             # print("AttnProcessor call", self.save_aux) # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            
             if not self.save_aux: # save_aux = False
+                # print("TRY")
                 len_ = len(attn._aux['attn'])
                 del attn._aux['attn']
                 attn._aux['attn'] = [None] * len_ + [scores_]
@@ -166,6 +165,7 @@ class SelfGuidanceAttnProcessor2_0:
                 attn._aux['attn'][-1] = attn._aux['attn'][-1].cpu()
                 attn._aux['attn'].append(scores_)
         except:
+            # print("EXCEPT STATEMENT") # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             try:
                 del attn._aux['attn']
             except:

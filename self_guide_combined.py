@@ -186,7 +186,9 @@ class SelfGuidanceEdits:
                  alpha=1, margin=0.5, logger=None, self_guidance_mode=False, plot_centroid=False,
                  two_objects=False, centroid_type="sg"):
         timestep = i
+        # print("attn shape before: ", attn.shape) # here it is a list and based on the timestep you extract the attention map
         attn = attn[i]
+        # print("attn shape after: ", attn.shape)
         tgt_attn = tgt[i].to(attn.device) if tgt is not None else None
 
         if relative: assert tgt_attn is not None
