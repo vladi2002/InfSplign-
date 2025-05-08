@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from self_guidance import plot_attention_map
 
 
 class Splign:
@@ -74,6 +75,7 @@ class Splign:
                  alpha=1, margin=0.5, logger=None, self_guidance_mode=False, plot_centroid=False,
                  two_objects=False, centroid_type="sg"):        
         # print("attn len: ", len(attn))
+        timestep = i
         attn = attn[i]
         # print(f"attn shape at timestep {i}: ", attn.shape) # [batch_size, 64, 64, 1]
         attn = attn[batch_index:batch_index+1]
@@ -83,7 +85,8 @@ class Splign:
                
         tgt_attn = tgt[i].to(attn.device) if tgt is not None else None
 
-        if relative: assert tgt_attn is not None
+        if relative: 
+            assert tgt_attn is not None
         tgt_attn = tgt_attn if tgt_attn is not None else attn
 
         # extract the attention map for the specific token
@@ -106,6 +109,12 @@ class Splign:
                     obs_centroid = Splign._centroid(attn_map)
                 centroids.append(obs_centroid)
                 # print("centroid", obs_centroid, obs_centroid.shape)
+                
+                if plot_centroid:                    
+                    plot_attention_map(attn_map, timestep+1, module_name,
+                                    centroid=obs_centroid, object=objects[i],
+                                    loss_type=loss_type, loss_num=loss_num,
+                                    prompt=prompt, margin=margin, alpha=alpha)
 
                 if self_guidance_mode:
                     tgt_centroid = shift.reshape((1,) * (obs_centroid.ndim - shift.ndim) + shift.shape)
