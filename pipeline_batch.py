@@ -129,6 +129,8 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                 filenames = [f"{prompt}_{img_id}.png" for prompt in batch_prompts]
 
             out_filenames = [os.path.join(save_path, filename) for filename in filenames]
+            existing_files = [os.path.exists(path) for path in out_filenames]
+            files_to_generate = [not file_exists for file_exists in existing_files]
 
             _, centroid_weight, _, _ = weight_combinations[0]
 
@@ -159,15 +161,26 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                 base_out_filenames = [os.path.join(save_path, filename) for filename in base_filenames]
                 for img, path in zip(out, base_out_filenames):
                     img.save(path)
+
             # print("SELF-GUIDANCE")
-            out = pipe(prompt=batch_prompts, generator=generators, sg_grad_wt=sg_grad_wt, sg_edits=sg_edits,
-                       num_inference_steps=num_inference_steps, L2_norm=L2_norm, margin=margin,
-                       sg_loss_rescale=sg_loss_rescale, sg_t_start=sg_t_start, sg_t_end=sg_t_end,
-                       self_guidance_mode=self_guidance_mode, loss_type=loss_type, loss_num=int(loss_num),
-                       plot_centroid=plot_centroid, save_aux=save_aux, two_objects=two_objects,
-                       update_latents=update_latents).images
-            for img, path in zip(out, out_filenames):
-                img.save(path)
+            if any(files_to_generate):
+                filtered_prompts = [p for p, should_gen in zip(batch_prompts, files_to_generate) if should_gen]
+                filtered_generators = [g for g, should_gen in zip(generators, files_to_generate) if should_gen]
+                filtered_sg_edits = [sg for sg, should_gen in zip(sg_edits, files_to_generate) if should_gen]
+
+                if filtered_prompts:
+                    out = pipe(prompt=filtered_prompts, generator=filtered_generators, sg_grad_wt=sg_grad_wt,
+                               sg_edits=filtered_sg_edits,
+                               num_inference_steps=num_inference_steps, L2_norm=L2_norm, margin=margin,
+                               sg_loss_rescale=sg_loss_rescale, sg_t_start=sg_t_start, sg_t_end=sg_t_end,
+                               self_guidance_mode=self_guidance_mode, loss_type=loss_type, loss_num=int(loss_num),
+                               plot_centroid=plot_centroid, save_aux=save_aux, two_objects=two_objects,
+                               update_latents=update_latents).images
+
+                    filtered_paths = [path for path, should_gen in zip(out_filenames, files_to_generate) if
+                                      should_gen]
+                    for img, path in zip(out, filtered_paths):
+                        img.save(path)
 
 
 def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_inference_steps,
@@ -320,9 +333,10 @@ def generate_images(config):
         all_prompts = []
         all_words = {}
         for data in visor_data:
-            prompt = data['text']
-            all_prompts.append(prompt)
-            all_words[prompt] = [data['obj_1_attributes'][0], data["obj_2_attributes"][0]]
+            if data["num_objects"] == 2 and data["rel_type"] != "and":
+                prompt = data['text']
+                all_prompts.append(prompt)
+                all_words[prompt] = [data['obj_1_attributes'][0], data["obj_2_attributes"][0]]
 
         seeds = [42]
         vocab_spatial = ["to the left of", "to the right of", "above", "below"]
@@ -427,6 +441,36 @@ def generate_images(config):
                       batch_size=batch_size, model=model, run_base=run_base)
 
 
+def run_t2i(config):
+    for model in ["sd1.4", "sd2.1"]: # "sd1.5", "sdxl", "spright"
+        config.model = model
+        for loss in ["relu", "squared_relu", "gelu", "sigmoid"]:
+            config.loss_type = loss
+            for margin in [0.1, 0.25, 0.5]:
+                config.margin = margin
+                # # more experiments
+                # for loss_num in [2, 3]: # 1 is the default so that is done
+                #     config.loss_num = loss_num
+                for centroid_type in ["mean", "sg"]:
+                    config.centroid_type = centroid_type
+
+                    img_id = f"{loss}_m={margin}_centr_{centroid_type}"
+                    config.img_id = img_id
+
+                    benchmark = config.benchmark
+                    base_pattern = f"{model}_{img_id}"
+                    parent_dir = os.path.join("images", benchmark)
+                    if os.path.exists(parent_dir):
+                        existing_dirs = [d for d in os.listdir(parent_dir) if
+                                         os.path.isdir(os.path.join(parent_dir, d))]
+                        if any(d.startswith(base_pattern) for d in existing_dirs):
+                            continue
+
+                    generate_images(config)
+
+
 if __name__ == "__main__":
     config = get_config()
-    generate_images(config)
+    # generate_images(config)
+
+    run_t2i(config)
