@@ -87,13 +87,13 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
 
         if benchmark == "visor":
             seed = seeds[0]
-            generators = [torch.Generator(device=device).manual_seed(seed) for _ in range(batch_size)]
+            generators = [torch.Generator(device=device).manual_seed(seed) for _ in range(len(batch_prompts))]
 
         for i in range(num_images_per_prompt):
             if benchmark == "t2i" or benchmark == "geneval":
                 seed = seeds[i]
                 # print("seed", seed)
-                generators = [torch.Generator(device=device).manual_seed(seed) for _ in range(batch_size)]
+                generators = [torch.Generator(device=device).manual_seed(seed) for _ in range(len(batch_prompts))]
 
             batched_relationships = []
             batched_shifts = []
