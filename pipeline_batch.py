@@ -83,6 +83,8 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
 
     for batch_start in range(0, len(prompts), batch_size):
         batch_prompts = prompts[batch_start:batch_start + batch_size]
+        # if batch_prompts[0] != "a hot dog to the left of an orange":
+        #     continue
         # print("batch_prompts", batch_prompts)
 
         if benchmark == "visor":
@@ -120,11 +122,12 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                     for prompt in batch_prompts:
                         if word_list[0] in prompt:
                             batched_words.append(word_list)
-            # print("words: ", batched_words)
+            print("words: ", batched_words)
+            # words = [["dog", "orange"]]
 
             if benchmark is not None or do_multiprocessing:
-                filenames = [f"{prompt}_{i}.png" for prompt in batch_prompts]
-                # print("filenames", filenames)
+                filenames = [f"{prompt}_center_multiple_{i}.png" for prompt in batch_prompts]
+                print("filenames", filenames)
             else:
                 filenames = [f"{prompt}_{img_id}.png" for prompt in batch_prompts]
 
@@ -242,11 +245,12 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
         if benchmark == "visor":
             prompts = [data['text'] for data in all_data]
             all_words = {data['text']: [data['obj_1_attributes'][0], data["obj_2_attributes"][0]] for data in all_data}
-        if benchmark == "t2i":
+        if benchmark == "t2i" or benchmark == "geneval":
             prompts = [data['prompt'] for data in all_data]
             all_words = {data['prompt']: [data['objects'][0], data["objects"][1]] for data in all_data}
-        if benchmark == "geneval":
-            pass
+        # if benchmark == "geneval":
+        #     prompts = list(all_data.keys())
+        #     all_words = all_data
 
         p = mp.Process(target=run_on_gpu, args=(gpu_id, prompts, all_words, attn_greenlist, seeds,
                                                 num_inference_steps, sg_t_start, sg_t_end, sg_grad_wt, sg_loss_rescale,
@@ -330,13 +334,11 @@ def generate_images(config):
         with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
             visor_data = json.load(f)
 
-        all_prompts = []
-        all_words = {}
+        all_prompts, all_words = [], {}
         for data in visor_data:
-            if data["num_objects"] == 2 and data["rel_type"] != "and":
-                prompt = data['text']
-                all_prompts.append(prompt)
-                all_words[prompt] = [data['obj_1_attributes'][0], data["obj_2_attributes"][0]]
+            prompt = data['text']
+            all_prompts.append(prompt)
+            all_words[prompt] = [data['obj_1_attributes'][0], data["obj_2_attributes"][0]]
 
         seeds = [42]
         vocab_spatial = ["to the left of", "to the right of", "above", "below"]
@@ -350,10 +352,18 @@ def generate_images(config):
 
     elif benchmark == "geneval":
         with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
-            all_words = json.load(f)
-        all_prompts = all_words.keys()
+            geneval_data = json.load(f)
+        
+        all_prompts, all_words = [], {}
+        for data in geneval_data:
+            prompt = data['prompt']
+            all_prompts.append(prompt)
+            all_words[prompt] = [data['objects'][0], data["objects"][1]]
+        
+        print("len all_prompts: ", len(all_prompts))
         num_images_per_prompt = 4
         seeds = list(range(42, 42 + num_images_per_prompt))
+        print("seeds: ", seeds)
         vocab_spatial = ['above', 'below', 'left of', 'right of']
         shifts = {
             "left of": [(0., 0.5), (1., 0.5)],
@@ -441,36 +451,28 @@ def generate_images(config):
                       batch_size=batch_size, model=model, run_base=run_base)
 
 
-def run_t2i(config):
+def run_sweep_experiments(config):
     for model in ["sd1.4", "sd2.1"]: # "sd1.5", "sdxl", "spright"
         config.model = model
         for loss in ["relu", "squared_relu", "gelu", "sigmoid"]:
             config.loss_type = loss
-            for margin in [0.1, 0.25, 0.5]:
-                config.margin = margin
-                # # more experiments
-                # for loss_num in [2, 3]: # 1 is the default so that is done
-                #     config.loss_num = loss_num
-                for centroid_type in ["mean", "sg"]:
-                    config.centroid_type = centroid_type
+            # for margin in [0.1, 0.25, 0.5]:
+            margin = 0.25
+            config.margin = margin
+            # for loss_num in [1, 2, 3]:
+            #     config.loss_num = loss_num
 
-                    img_id = f"{loss}_m={margin}_centr_{centroid_type}"
-                    config.img_id = img_id
+            centroid_type = "mean"
+            config.centroid_type = centroid_type
 
-                    benchmark = config.benchmark
-                    base_pattern = f"{model}_{img_id}"
-                    parent_dir = os.path.join("images", benchmark)
-                    if os.path.exists(parent_dir):
-                        existing_dirs = [d for d in os.listdir(parent_dir) if
-                                         os.path.isdir(os.path.join(parent_dir, d))]
-                        if any(d.startswith(base_pattern) for d in existing_dirs):
-                            continue
+            img_id = f"{loss}_m={margin}_centr_{centroid_type}"
+            config.img_id = img_id
 
-                    generate_images(config)
+            generate_images(config)
 
 
 if __name__ == "__main__":
     config = get_config()
     # generate_images(config)
 
-    run_t2i(config)
+    run_sweep_experiments(config)
