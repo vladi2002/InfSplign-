@@ -83,8 +83,6 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
 
     for batch_start in range(0, len(prompts), batch_size):
         batch_prompts = prompts[batch_start:batch_start + batch_size]
-        # if batch_prompts[0] != "a hot dog to the left of an orange":
-        #     continue
         # print("batch_prompts", batch_prompts)
 
         if benchmark == "visor":
@@ -122,12 +120,11 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                     for prompt in batch_prompts:
                         if word_list[0] in prompt:
                             batched_words.append(word_list)
-            print("words: ", batched_words)
-            # words = [["dog", "orange"]]
+            # print("words: ", batched_words)
 
             if benchmark is not None or do_multiprocessing:
-                filenames = [f"{prompt}_center_multiple_{i}.png" for prompt in batch_prompts]
-                print("filenames", filenames)
+                filenames = [f"{prompt}_{i}.png" for prompt in batch_prompts]
+                # print("filenames", filenames)
             else:
                 filenames = [f"{prompt}_{img_id}.png" for prompt in batch_prompts]
 

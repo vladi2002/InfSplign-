@@ -73,52 +73,70 @@ class Splign:
                  relative=False, idxs=None, L2=False, module_name=None,
                  cluster_objects=False, prompt=None, relationship="other",
                  alpha=1, margin=0.5, logger=None, self_guidance_mode=False, plot_centroid=False,
-                 two_objects=False, centroid_type="sg"):        
+                 two_objects=False, centroid_type="sg"):
         # print("attn len: ", len(attn))
         timestep = i
         attn = attn[i]
         # print(f"attn shape at timestep {i}: ", attn.shape) # [batch_size, 64, 64, 1]
         attn = attn[batch_index:batch_index+1]
         # print(f"attn shape of batch index {batch_index}: ", attn.shape)  # [1, 64, 64, 1]
-        
-        # print("shifts", shifts)
-               
-        tgt_attn = tgt[i].to(attn.device) if tgt is not None else None
 
-        if relative: 
+        # print("shifts", shifts)
+
+        tgt_attn = tgt[i].to(attn.device) if tgt is not None else None
+        # print(objects)
+
+        if relative:
             assert tgt_attn is not None
         tgt_attn = tgt_attn if tgt_attn is not None else attn
 
         # extract the attention map for the specific token
-        if idxs is not None:
-            attn = attn[..., idxs]  # sd1.5 - [1, 64, 64, 2] -> 2 tokens
-            tgt_attn = tgt_attn[..., idxs]
+        # if idxs is not None:
+        #     attn = attn[..., idxs]  # sd1.5 - [1, 64, 64, 2] -> 2 tokens
+        #     tgt_attn = tgt_attn[..., idxs]
+        # # print(idxs)
 
         losses = []
         if two_objects:
+            object_token_mapping = []
+            current_idx = 0
+
+            for obj in objects:
+                num_words = len(obj.split())
+                obj_indices = idxs[current_idx:current_idx+num_words]
+                object_token_mapping.append(obj_indices)
+                current_idx += num_words
+
             centroids = []
-            for i in range(len(shifts)):
-                shift = torch.tensor(shifts[i]).to(attn.device)
-                attn_map = attn[..., i:i + 1]
+            for i, obj_indices in enumerate(object_token_mapping):
+                combined_attn_map = None
+                for idx in obj_indices:
+                    attn_map = attn[..., idx:idx+1]
+                    if combined_attn_map is None:
+                        combined_attn_map = attn_map
+                    else:
+                        combined_attn_map = combined_attn_map + attn_map
+
+                if len(obj_indices) > 1:
+                    combined_attn_map /= len(obj_indices)
 
                 if centroid_type == "sg":
-                    obs_centroid = Splign._centroid_sg(
-                        attn_map)  # , objects[i] # [1,4,2] when multiple indices -> 4
-                    obs_centroid = obs_centroid.mean(1, keepdim=True)  # [1,1,2]
+                    obs_centroid = Splign._centroid_sg(combined_attn_map)
+                    obs_centroid = obs_centroid.mean(1, keepdim=True)
                 elif centroid_type == "mean":
-                    obs_centroid = Splign._centroid(attn_map)
+                    obs_centroid = Splign._centroid(combined_attn_map)
+
                 centroids.append(obs_centroid)
-                # print("centroid", obs_centroid, obs_centroid.shape)
-                
-                if plot_centroid:                    
-                    plot_attention_map(attn_map, timestep+1, module_name,
+
+                if plot_centroid:
+                    plot_attention_map(combined_attn_map, timestep+1, module_name,
                                     centroid=obs_centroid, object=objects[i],
                                     loss_type=loss_type, loss_num=loss_num,
                                     prompt=prompt, margin=margin, alpha=alpha)
 
                 if self_guidance_mode:
+                    shift = torch.tensor(shifts[i]).to(attn.device)
                     tgt_centroid = shift.reshape((1,) * (obs_centroid.ndim - shift.ndim) + shift.shape)
-
                     loss = Splign.compute_loss(L2, obs_centroid, tgt_centroid)
                     losses.append(loss)
 
@@ -126,7 +144,6 @@ class Splign:
                 spatial_loss = Splign.spatial_loss(centroids, relationship, loss_type,
                                                               loss_num, alpha=alpha, margin=margin,
                                                               logger=logger)
-                # print("spatial_loss", spatial_loss)
                 losses.append(spatial_loss)
 
         else:
@@ -138,8 +155,6 @@ class Splign:
             loss = Splign.compute_loss(L2, obs_centroid, tgt_centroid)
             losses.append(loss)
 
-        # losses.append(loss)
-        # assert len(losses) == 1, f"len(losses): {len(losses)}"
         return losses
 
     @staticmethod
