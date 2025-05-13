@@ -97,7 +97,7 @@ class Splign:
         return centroid
 
     @staticmethod
-    def _centroid(attn_map, object=None):
+    def _centroid(attn_map, smoothing=False, object=None):
         # print(attn_map.shape) [1,64,64,1]
         H, W = attn_map.shape[-3], attn_map.shape[-2]
 
@@ -108,13 +108,14 @@ class Splign:
         # attn_norm = F.softmax(attn_flat / temperature, dim=-1)
         # attn_map = attn_norm.view(B, H, W, T)
 
-        # kernel_size = 3
-        # sigma = 0.5
-        # smoothing = GaussianSmoothing(channels=1, kernel_size=kernel_size, sigma=sigma, dim=2).cuda()
-        # input = attn_map.permute(0, 3, 1, 2)
-        # input = F.pad(input, (1, 1, 1, 1), mode='reflect')
-        # attn_map = smoothing(input)
-        # attn_map = attn_map.permute(0, 2, 3, 1)
+        if smoothing:
+            kernel_size = 3
+            sigma = 0.5
+            smoothing = GaussianSmoothing(channels=1, kernel_size=kernel_size, sigma=sigma, dim=2).cuda()
+            input = attn_map.permute(0, 3, 1, 2)
+            input = F.pad(input, (1, 1, 1, 1), mode='reflect')
+            attn_map = smoothing(input)
+            attn_map = attn_map.permute(0, 2, 3, 1)
 
         x_coords = torch.linspace(0, 1, W).to(attn_map.device)
         y_coords = torch.linspace(0, 1, H).to(attn_map.device)
@@ -147,12 +148,12 @@ class Splign:
                  relative=False, idxs=None, L2=False, module_name=None,
                  cluster_objects=False, prompt=None, relationship="other",
                  alpha=1, margin=0.5, logger=None, self_guidance_mode=False, plot_centroid=False,
-                 two_objects=False, centroid_type="sg"):
+                 two_objects=False, centroid_type="sg", img_id=None, smoothing=False):
         # print("attn len: ", len(attn))
         timestep = i
         attn = attn[i]
         # print(f"attn shape at timestep {i}: ", attn.shape) # [batch_size, 64, 64, 1]
-        attn = attn[batch_index:batch_index+1]
+        attn = attn[batch_index:batch_index + 1]
         # print(f"attn shape of batch index {batch_index}: ", attn.shape)  # [1, 64, 64, 1]
 
         # print("shifts", shifts)
@@ -178,7 +179,7 @@ class Splign:
 
             for obj in objects:
                 num_words = len(obj.split())
-                obj_indices = idxs[current_idx:current_idx+num_words]
+                obj_indices = idxs[current_idx:current_idx + num_words]
                 object_token_mapping.append(obj_indices)
                 current_idx += num_words
 
@@ -186,7 +187,7 @@ class Splign:
             for i, obj_indices in enumerate(object_token_mapping):
                 combined_attn_map = None
                 for idx in obj_indices:
-                    attn_map = attn[..., idx:idx+1]
+                    attn_map = attn[..., idx:idx + 1]
                     if combined_attn_map is None:
                         combined_attn_map = attn_map
                     else:
@@ -199,17 +200,17 @@ class Splign:
                     obs_centroid = Splign._centroid_sg(combined_attn_map)
                     obs_centroid = obs_centroid.mean(1, keepdim=True)
                 elif centroid_type == "mean":
-                    obs_centroid = Splign._centroid(combined_attn_map)
+                    obs_centroid = Splign._centroid(combined_attn_map, smoothing=smoothing)
 
                 attn_map_list.append(combined_attn_map)
                 centroids.append(obs_centroid)
 
                 if plot_centroid:
-                    plot_attention_map(combined_attn_map, timestep+1, module_name,
-                                    centroid=obs_centroid, object=objects[i],
-                                    loss_type=loss_type, loss_num=loss_num,
-                                    prompt=prompt, margin=margin, alpha=alpha,
-                                    attn_folder="attention_maps")
+                    plot_attention_map(combined_attn_map, timestep + 1, module_name,
+                                       centroid=obs_centroid, object=objects[i],
+                                       loss_type=loss_type, loss_num=loss_num,
+                                       prompt=prompt, margin=margin, alpha=alpha,
+                                       attn_folder="attention_maps", img_id=img_id)
 
                 if self_guidance_mode:
                     shift = torch.tensor(shifts[i]).to(attn.device)
@@ -219,8 +220,8 @@ class Splign:
 
             if not self_guidance_mode:
                 spatial_loss = Splign.spatial_loss(centroids, relationship, loss_type,
-                                                              loss_num, alpha=alpha, margin=margin,
-                                                              logger=logger)
+                                                   loss_num, alpha=alpha, margin=margin,
+                                                   logger=logger)
                 # # MEAN
                 # thresh = 0.1
                 # for i, att_map in enumerate(attn_map_list):

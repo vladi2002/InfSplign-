@@ -135,7 +135,7 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
                             edit['idxs'] = np.arange(len(prompt_text_ids))
                         else:
                             words = edit['words']
-                            if not isinstance(words, list): 
+                            if not isinstance(words, list):
                                 words = [words]
                             idxs = []
                             for word in words:
@@ -397,7 +397,7 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
             return (image,)
 
         return StableDiffusionXLPipelineOutput(images=image)
-    
+
 
 class SpatialLossSDPipeline(StableDiffusionPipeline):
 
@@ -428,7 +428,7 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                 del aux_module._aux
             except AttributeError:
                 pass
-    
+
     @torch.no_grad()
     def __call__(
             self,
@@ -468,6 +468,8 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
             plot_centroid=False,
             two_objects=False,
             update_latents=False,
+            img_id=None,
+            smoothing=False
     ):
         # 0. Default height and width to unet
         height = height or self.unet.config.sample_size * self.vae_scale_factor
@@ -501,14 +503,18 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                             edit['idxs'] = np.arange(len(prompt_text_ids))
                         else:
                             words = edit['words']
-                            if not isinstance(words, list): 
+                            if not isinstance(words, list):
                                 words = [words]
                             idxs = []
                             for word in words:
                                 word_ids = self.tokenizer(word, return_tensors='np')['input_ids']
+                                # print(word, len(word_ids))
                                 word_ids = word_ids[word_ids < 49406]
-                                idxs.append(search_sequence_numpy(prompt_text_ids, word_ids))
+                                ids = search_sequence_numpy(prompt_text_ids, word_ids)
+                                # print(word, ids)
+                                idxs.append(ids)
                             edit['idxs'] = np.concatenate(idxs)
+                            # print(words, edit['idxs'])
 
         # 3. Encode input prompt
         prompt_embeds = self._encode_prompt(
@@ -552,16 +558,15 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
         torch.cuda.empty_cache()
         if sg_t_end < 0:
             sg_t_end = len(timesteps)
-            
+
         if self_guidance_mode:
             first_steps = 3 * num_inference_steps // 16
             remaining = 25 * num_inference_steps // 32
             self_guidance_alternate_steps = list(range(first_steps, first_steps + remaining + 1, 2))
 
-        
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
-                
+
                 if not (sg_grad_wt > 0 and sg_edits is not None):
                     do_self_guidance = False  # base sdxl
                 elif self_guidance_mode and i > sg_t_end and i + 1 not in self_guidance_alternate_steps:
@@ -571,7 +576,7 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                     do_self_guidance = True
                 else:
                     do_self_guidance = False
-                
+
                 with torch.set_grad_enabled(do_self_guidance):
                     latents.requires_grad_(do_self_guidance)
                     # expand the latents if we are doing classifier free guidance
@@ -645,7 +650,8 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                                                                 self_guidance_mode=self_guidance_mode, objects=words,
                                                                 prompt=prompt_b,
                                                                 module_name=module_name, relationship=relationship,
-                                                                centroid_type=centorid_type)
+                                                                centroid_type=centorid_type,
+                                                                img_id=img_id, smoothing=smoothing)
                                             lst1.extend(result)
 
                                         edit_loss1 = torch.stack(lst1).mean()
@@ -672,7 +678,7 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                         assert not noise_pred.isnan().any()
                     latents.detach()
                     ### END SELF GUIDANCE
-                
+
                 # compute the previous noisy sample x_t -> x_t-1
                 latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).prev_sample # , generator=generator
 
@@ -688,7 +694,7 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
             self.wipe_sg_aux()
 
         latents = latents.detach()
-        
+
         if output_type == "latent":
             image = latents
             has_nsfw_concept = None

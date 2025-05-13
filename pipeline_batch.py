@@ -34,6 +34,7 @@ def get_config():
     parser.add_argument("--json_filename", default=None)
     parser.add_argument("--centroid_type", default="sg")
     parser.add_argument("--batch_size", default=1)
+    parser.add_argument("--gaussian_smoothing", default=False)
 
     # t2i-comp-bench
     parser.add_argument("--port", default=2)
@@ -72,7 +73,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   loss_num="", alpha=1., self_guidance_mode=False, loss_type="sigmoid",
                   plot_centroid=False, save_aux=False, two_objects=False, weight_combinations=None,
                   do_multiprocessing=False, img_id="", update_latents=False, benchmark=None, centroid_type="sg",
-                  batch_size=1, model="model_name", run_base=False):
+                  batch_size=1, model="model_name", run_base=False, smoothing=False):
     # print("num_images_per_prompt", num_images_per_prompt)
 
     if benchmark is not None or do_multiprocessing:
@@ -181,7 +182,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                                sg_loss_rescale=sg_loss_rescale, sg_t_start=sg_t_start, sg_t_end=sg_t_end,
                                self_guidance_mode=self_guidance_mode, loss_type=loss_type, loss_num=int(loss_num),
                                plot_centroid=plot_centroid, save_aux=save_aux, two_objects=two_objects,
-                               update_latents=update_latents).images
+                               update_latents=update_latents, img_id=img_id, smoothing=smoothing).images
 
                     filtered_paths = [path for path, should_gen in zip(out_filenames, files_to_generate) if
                                       should_gen]
@@ -275,7 +276,7 @@ def generate_images(config):
 
     model = config.model
     model_information = get_model_id(model)
-    
+
     device = config.device
     L2_norm = config.L2_norm
     loss_num = config.loss_num
@@ -292,6 +293,7 @@ def generate_images(config):
     json_filename = config.json_filename
     centroid_type = config.centroid_type
     batch_size = int(config.batch_size)
+    smoothing = config.gaussian_smoothing
 
     print("L2_norm: ", L2_norm)
     print("self_guidance_mode: ", self_guidance_mode)
@@ -308,6 +310,7 @@ def generate_images(config):
     print("json_filename: ", json_filename)
     print("centroid_type: ", centroid_type)
     print("batch_size: ", batch_size)
+    print("smoothing: ", smoothing)
 
     if benchmark == "t2i":
         with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
@@ -356,13 +359,13 @@ def generate_images(config):
     elif benchmark == "geneval":
         with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
             geneval_data = json.load(f)
-        
+
         all_prompts, all_words = [], {}
         for data in geneval_data:
             prompt = data['prompt']
             all_prompts.append(prompt)
             all_words[prompt] = [data['objects'][0], data["objects"][1]]
-        
+
         print("len all_prompts: ", len(all_prompts))
         num_images_per_prompt = 4
         seeds = list(range(42, 42 + num_images_per_prompt))
@@ -408,20 +411,20 @@ def generate_images(config):
 
     sg_loss_rescale = 1000.  # to avoid numerical underflow, scale loss by this amount and then divide gradients after backprop
     sg_t_start = 0
-    
+
     if self_guidance_mode:
         num_inference_steps = 64
         sg_t_end = 3 * num_inference_steps // 16
-    
+
     if model == "sdxl":
         num_inference_steps = 50
         sg_t_end = 25
-        
+
     if model == "sd1.4" or model == "sd1.5" or model == "sd2.1" or model == "spright":
         num_inference_steps = 200
         sg_t_end = 25
     print("num_inference_steps", num_inference_steps)
-    
+
     relationship = None
 
     if do_multiprocessing:
@@ -451,7 +454,7 @@ def generate_images(config):
                       loss_type=loss_type, margin=margin, plot_centroid=plot_centroid, two_objects=two_objects,
                       weight_combinations=weight_combinations, do_multiprocessing=do_multiprocessing, img_id=img_id,
                       update_latents=update_latents, benchmark=benchmark, centroid_type=centroid_type,
-                      batch_size=batch_size, model=model, run_base=run_base)
+                      batch_size=batch_size, model=model, run_base=run_base, smoothing=smoothing)
 
 
 def run_sweep_experiments(config):
