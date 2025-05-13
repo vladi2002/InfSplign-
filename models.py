@@ -274,6 +274,7 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
                     # perform guidance
                     if do_classifier_free_guidance:
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                        correction = (noise_pred_text - noise_pred_uncond)
                         noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                     ### SELF GUIDANCE
@@ -428,6 +429,12 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                 del aux_module._aux
             except AttributeError:
                 pass
+    
+    def set_scale(self, grad, correction=None, target_guidance=None, guidance_scale=None):
+        grad_norm = (grad * grad).mean().sqrt().item()
+        target_guidance = (correction * correction).mean().sqrt().item() * guidance_scale / (grad_norm + 1e-8) * target_guidance 
+        if target_guidance > 150.0: target_guidance = 150.0
+        return target_guidance
     
     @torch.no_grad()
     def __call__(
@@ -589,6 +596,7 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
 
                     if do_classifier_free_guidance:
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                        correction = (noise_pred_text - noise_pred_uncond)
                         noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                     ### SELF GUIDANCE
@@ -656,7 +664,15 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
 
                                 sg_loss += sg_loss_b
 
+                        # def set_scale(self, grad, correction=None, target_guidance=None, guidance_scale=None):
+                        #     grad_norm = (grad * grad).mean().sqrt().item()
+                        #     target_guidance = (correction * correction).mean().sqrt().item() * guidance_scale / (grad_norm + 1e-8) * target_guidance 
+                        #     if target_guidance > 150.0: target_guidance = 150.0
+                        #     return target_guidance
+                        
+                        grad_norm_scale = True
                         sg_grad = torch.autograd.grad(sg_loss_rescale * sg_loss, latents)[0] / sg_loss_rescale
+                        target_guidance = self.set_scale(sg_grad, correction, self.target_guidance, guidance_scale)
 
                         # non_zero_values = sg_grad[sg_grad != 0]
                         # print("Num non-zero values:", len(non_zero_values), "/", sg_grad.numel(), "mean", sg_grad.mean().item())
@@ -666,6 +682,8 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
 
                         if update_latents:
                             latents = latents - sg_grad_wt * sg_grad
+                        elif grad_norm_scale:
+                            noise_pred = noise_pred + target_guidance * sg_grad
                         else:
                             noise_pred = noise_pred + sg_grad_wt * sg_grad
 
