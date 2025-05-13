@@ -37,6 +37,10 @@ def get_config():
     parser.add_argument("--gaussian_smoothing", default=False)
     parser.add_argument("--masked_mean", default=False)
 
+    parser.add_argument("--num_inference_steps", default=1)
+    parser.add_argument("--sg_t_start", default=1)
+    parser.add_argument("--sg_t_end", default=1)
+
     # t2i-comp-bench
     parser.add_argument("--port", default=2)
     parser.add_argument("--confidence-threshold", type=float, default=0.5)
@@ -299,23 +303,31 @@ def generate_images(config):
     smoothing = bool(config.gaussian_smoothing)
     masked_mean = bool(config.masked_mean)
 
-    print("L2_norm: ", L2_norm)
-    print("self_guidance_mode: ", self_guidance_mode)
-    print("two_objects: ", two_objects)
-    print("loss_type: ", loss_type)
-    print("loss_num: ", loss_num)
-    print("margin: ", margin)
-    print("alpha: ", alpha)
-    print("plot_centroid: ", plot_centroid)
-    print("do_multiprocessing: ", do_multiprocessing)
-    print("update_latents: ", update_latents)
-    print("img_id: ", img_id)
-    print("benchmark: ", benchmark)
-    print("json_filename: ", json_filename)
-    print("centroid_type: ", centroid_type)
-    print("batch_size: ", batch_size)
-    print("smoothing: ", smoothing)
-    print("masked_mean: ", masked_mean)
+    num_inference_steps = int(config.num_inference_steps)
+    sg_t_start = int(config.sg_t_start)
+    sg_t_end = int(config.sg_t_end)
+
+    # print("num_inference_steps", num_inference_steps)
+    # print("sg_t_start", sg_t_start)
+    # print("sg_t_end", sg_t_end)
+    #
+    # print("L2_norm: ", L2_norm)
+    # print("self_guidance_mode: ", self_guidance_mode)
+    # print("two_objects: ", two_objects)
+    # print("loss_type: ", loss_type)
+    # print("loss_num: ", loss_num)
+    # print("margin: ", margin)
+    # print("alpha: ", alpha)
+    # print("plot_centroid: ", plot_centroid)
+    # print("do_multiprocessing: ", do_multiprocessing)
+    # print("update_latents: ", update_latents)
+    # print("img_id: ", img_id)
+    # print("benchmark: ", benchmark)
+    # print("json_filename: ", json_filename)
+    # print("centroid_type: ", centroid_type)
+    # print("batch_size: ", batch_size)
+    # print("smoothing: ", smoothing)
+    # print("masked_mean: ", masked_mean)
 
     if benchmark == "t2i":
         with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
@@ -341,6 +353,7 @@ def generate_images(config):
             "near": [(0.25, 0.5), (0.75, 0.5)]  # left
         }
 
+    # TODO: USE JUST ONE OBJECT -> NO ATTENTION SUMMING
     elif benchmark == "visor":
         with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
             visor_data = json.load(f)
@@ -385,7 +398,7 @@ def generate_images(config):
 
     if benchmark is not None:
         save_dir_name = os.path.join(benchmark, f"{model}_{img_id}")
-    print("save_dir_name", save_dir_name)
+    # print("save_dir_name", save_dir_name)
 
     if model == "sdxl":
         attn_greenlist = [
@@ -407,6 +420,25 @@ def generate_images(config):
             # "up_blocks.3.attentions.2.transformer_blocks.0.attn2"
         ]
 
+        # cross_attn_layers_sd1.4 = [
+        #     # "down_blocks.0.attentions.0.transformer_blocks.0.attn2",
+        #     # "down_blocks.0.attentions.1.transformer_blocks.0.attn2",
+        #     # "down_blocks.1.attentions.0.transformer_blocks.0.attn2",
+        #     # "down_blocks.1.attentions.1.transformer_blocks.0.attn2",
+        #     # "down_blocks.2.attentions.0.transformer_blocks.0.attn2",
+        #     # "down_blocks.2.attentions.1.transformer_blocks.0.attn2",
+        #     # "mid_block.attentions.0.transformer_blocks.0.attn2",
+        #     "up_blocks.1.attentions.0.transformer_blocks.0.attn2",
+        #     "up_blocks.1.attentions.1.transformer_blocks.0.attn2",
+        #     "up_blocks.1.attentions.2.transformer_blocks.0.attn2",
+        #     # "up_blocks.2.attentions.0.transformer_blocks.0.attn2",
+        #     # "up_blocks.2.attentions.1.transformer_blocks.0.attn2",
+        #     # "up_blocks.2.attentions.2.transformer_blocks.0.attn2",
+        #     # "up_blocks.3.attentions.0.transformer_blocks.0.attn2",
+        #     # "up_blocks.3.attentions.1.transformer_blocks.0.attn2",
+        #     # "up_blocks.3.attentions.2.transformer_blocks.0.attn2"
+        # ]
+
     if update_latents:
         sg_grad_wt = 7.5
         weight_combinations = [(0, 100.0, 0, 0)]
@@ -415,7 +447,7 @@ def generate_images(config):
         weight_combinations = [(0, 5.0, 0, 0)]
 
     sg_loss_rescale = 1000.  # to avoid numerical underflow, scale loss by this amount and then divide gradients after backprop
-    sg_t_start = 0
+    # sg_t_start = 0
 
     if self_guidance_mode:
         num_inference_steps = 64
@@ -425,10 +457,11 @@ def generate_images(config):
         num_inference_steps = 50
         sg_t_end = 25
 
-    if model == "sd1.4" or model == "sd1.5" or model == "sd2.1" or model == "spright":
-        num_inference_steps = 200
-        sg_t_end = 25
-    print("num_inference_steps", num_inference_steps)
+    # if model == "sd1.4" or model == "sd1.5" or model == "sd2.1" or model == "spright":
+    #     num_inference_steps = 200
+    #     sg_t_end = 25
+
+    # print("num_inference_steps", num_inference_steps)
 
     relationship = None
 
@@ -447,6 +480,8 @@ def generate_images(config):
 
         save_aux = False  # True
         set_attention_processors(pipe, attn_greenlist, save_aux=save_aux)
+
+        print("Configuration: sg_start=", sg_t_start, "sg_end=", sg_t_end, "num_inference_steps=", num_inference_steps)
 
         run_base = False
         self_guidance(pipe, device, attn_greenlist, all_prompts, all_words, seeds, num_inference_steps, sg_t_start,
@@ -482,8 +517,29 @@ def run_sweep_experiments(config):
             generate_images(config)
 
 
+def run_ablation_spatial_loss_intervention(config):
+    sg_t_start_list = [0, 5, 10, 25, 50]
+    sp_loss_range_list = [25, 50] # for how many steps we apply the spatial loss
+    num_inference_steps = [200, 500]
+    for model in ["sd1.4", "sd2.1"]:
+        for sg_t_start in sg_t_start_list:
+            for sp_loss_range in sp_loss_range_list:
+                for num_steps in num_inference_steps:
+                    config.model = model
+                    config.sg_t_start = sg_t_start
+                    config.sg_t_end = sg_t_start + sp_loss_range
+                    config.num_inference_steps = num_steps
+
+                    img_id = f"sg_t_start_{sg_t_start}_sp_loss_range_{sp_loss_range}_num_steps_{num_steps}"
+                    config.img_id = img_id
+
+                    generate_images(config)
+
+
 if __name__ == "__main__":
     config = get_config()
-    generate_images(config)
+    run_ablation_spatial_loss_intervention(config)
+
+    # generate_images(config)
 
     # run_sweep_experiments(config)
