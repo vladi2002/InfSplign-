@@ -35,6 +35,7 @@ def get_config():
     parser.add_argument("--centroid_type", default="sg")
     parser.add_argument("--batch_size", default=1)
     parser.add_argument("--gaussian_smoothing", default=False)
+    parser.add_argument("--masked_mean", default=False)
 
     # t2i-comp-bench
     parser.add_argument("--port", default=2)
@@ -73,7 +74,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   loss_num="", alpha=1., self_guidance_mode=False, loss_type="sigmoid",
                   plot_centroid=False, save_aux=False, two_objects=False, weight_combinations=None,
                   do_multiprocessing=False, img_id="", update_latents=False, benchmark=None, centroid_type="sg",
-                  batch_size=1, model="model_name", run_base=False, smoothing=False):
+                  batch_size=1, model="model_name", run_base=False, smoothing=False, masked_mean=False):
     # print("num_images_per_prompt", num_images_per_prompt)
 
     if benchmark is not None or do_multiprocessing:
@@ -182,7 +183,8 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                                sg_loss_rescale=sg_loss_rescale, sg_t_start=sg_t_start, sg_t_end=sg_t_end,
                                self_guidance_mode=self_guidance_mode, loss_type=loss_type, loss_num=int(loss_num),
                                plot_centroid=plot_centroid, save_aux=save_aux, two_objects=two_objects,
-                               update_latents=update_latents, img_id=img_id, smoothing=smoothing).images
+                               update_latents=update_latents, img_id=img_id, smoothing=smoothing,
+                               masked_mean=masked_mean).images
 
                     filtered_paths = [path for path, should_gen in zip(out_filenames, files_to_generate) if
                                       should_gen]
@@ -196,7 +198,7 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                vocab_spatial=[], loss_num=1, alpha=1, loss_type="relu", margin=0.1,
                self_guidance_mode=False, two_objects=False, plot_centroid=False, weight_combinations=None,
                do_multiprocessing=False, img_id="", update_latents=False, save_dir_name="", centroid_type="sg",
-               benchmark=None, batch_size=1, model="model_name"):
+               benchmark=None, batch_size=1, model="model_name", smoothing=False, masked_mean=False):
     torch.cuda.set_device(gpu_id)
     device = torch.device(f"cuda:{gpu_id}")
 
@@ -218,7 +220,8 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                   weight_combinations=weight_combinations,
                   do_multiprocessing=do_multiprocessing, img_id=img_id,
                   update_latents=update_latents, save_dir_name=save_dir_name,
-                  centroid_type=centroid_type, benchmark=benchmark, batch_size=batch_size, model=model)
+                  centroid_type=centroid_type, benchmark=benchmark, batch_size=batch_size, model=model,
+                  smoothing=smoothing, masked_mean=masked_mean)
 
 
 def start_multiprocessing(attn_greenlist, json_filename, seeds,
@@ -227,7 +230,7 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                           loss_num, alpha, loss_type, margin, self_guidance_mode,
                           two_objects, plot_centroid, weight_combinations,
                           do_multiprocessing, img_id, update_latents, benchmark,
-                          save_dir_name, centroid_type, batch_size, model):
+                          save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean):
     # MULTIPROCESSING
     # SHELL
     num_gpus = torch.cuda.device_count()
@@ -263,7 +266,7 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                                                 two_objects, plot_centroid, weight_combinations,
                                                 do_multiprocessing, img_id, update_latents, save_dir_name,
                                                 centroid_type,
-                                                benchmark, batch_size, model))
+                                                benchmark, batch_size, model, smoothing, masked_mean))
         p.start()
         processes.append(p)
 
@@ -293,7 +296,8 @@ def generate_images(config):
     json_filename = config.json_filename
     centroid_type = config.centroid_type
     batch_size = int(config.batch_size)
-    smoothing = config.gaussian_smoothing
+    smoothing = bool(config.gaussian_smoothing)
+    masked_mean = bool(config.masked_mean)
 
     print("L2_norm: ", L2_norm)
     print("self_guidance_mode: ", self_guidance_mode)
@@ -311,6 +315,7 @@ def generate_images(config):
     print("centroid_type: ", centroid_type)
     print("batch_size: ", batch_size)
     print("smoothing: ", smoothing)
+    print("masked_mean: ", masked_mean)
 
     if benchmark == "t2i":
         with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
@@ -435,7 +440,7 @@ def generate_images(config):
             loss_num, alpha, loss_type, margin, self_guidance_mode,
             two_objects, plot_centroid, weight_combinations,
             do_multiprocessing, img_id, update_latents, benchmark,
-            save_dir_name, centroid_type, batch_size, model)
+            save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean)
 
     else:
         pipe = init_pipeline(device, model_information)
@@ -454,7 +459,7 @@ def generate_images(config):
                       loss_type=loss_type, margin=margin, plot_centroid=plot_centroid, two_objects=two_objects,
                       weight_combinations=weight_combinations, do_multiprocessing=do_multiprocessing, img_id=img_id,
                       update_latents=update_latents, benchmark=benchmark, centroid_type=centroid_type,
-                      batch_size=batch_size, model=model, run_base=run_base, smoothing=smoothing)
+                      batch_size=batch_size, model=model, run_base=run_base, smoothing=smoothing, masked_mean=masked_mean)
 
 
 def run_sweep_experiments(config):

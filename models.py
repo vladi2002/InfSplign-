@@ -469,7 +469,8 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
             two_objects=False,
             update_latents=False,
             img_id=None,
-            smoothing=False
+            smoothing=False,
+            masked_mean=False
     ):
         # 0. Default height and width to unet
         height = height or self.unet.config.sample_size * self.vae_scale_factor
@@ -651,7 +652,7 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                                                                 prompt=prompt_b,
                                                                 module_name=module_name, relationship=relationship,
                                                                 centroid_type=centorid_type,
-                                                                img_id=img_id, smoothing=smoothing)
+                                                                img_id=img_id, smoothing=smoothing, masked_mean=masked_mean)
                                             lst1.extend(result)
 
                                         edit_loss1 = torch.stack(lst1).mean()
