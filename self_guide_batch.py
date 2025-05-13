@@ -3,6 +3,65 @@ import torch.nn.functional as F
 from self_guidance import plot_attention_map
 
 
+import numbers
+from torch import nn
+import math
+
+
+class GaussianSmoothing(nn.Module):
+    def __init__(self, channels, kernel_size, sigma, dim=2):
+        super(GaussianSmoothing, self).__init__()
+        if isinstance(kernel_size, numbers.Number):
+            kernel_size = [kernel_size] * dim
+        if isinstance(sigma, numbers.Number):
+            sigma = [sigma] * dim
+
+        # The gaussian kernel is the product of the
+        # gaussian function of each dimension.
+        kernel = 1
+        meshgrids = torch.meshgrid(
+            [
+                torch.arange(size, dtype=torch.float32)
+                for size in kernel_size
+            ]
+        )
+        for size, std, mgrid in zip(kernel_size, sigma, meshgrids):
+            mean = (size - 1) / 2
+            kernel *= 1 / (std * math.sqrt(2 * math.pi)) * \
+                      torch.exp(-((mgrid - mean) / (2 * std)) ** 2)
+
+        # Make sure sum of values in gaussian kernel equals 1.
+        kernel = kernel / torch.sum(kernel)
+
+        # Reshape to depthwise convolutional weight
+        kernel = kernel.view(1, 1, *kernel.size())
+        kernel = kernel.repeat(channels, *[1] * (kernel.dim() - 1))
+
+        self.register_buffer('weight', kernel)
+        self.groups = channels
+
+        if dim == 1:
+            self.conv = F.conv1d
+        elif dim == 2:
+            self.conv = F.conv2d
+        elif dim == 3:
+            self.conv = F.conv3d
+        else:
+            raise RuntimeError(
+                'Only 1, 2 and 3 dimensions are supported. Received {}.'.format(dim)
+            )
+
+    def forward(self, input):
+        """
+        Apply gaussian filter to input.
+        Arguments:
+            input (torch.Tensor): Input to apply gaussian filter on.
+        Returns:
+            filtered (torch.Tensor): Filtered output.
+        """
+        return self.conv(input, weight=self.weight.to(input.dtype), groups=self.groups)
+
+
 class Splign:
     @staticmethod
     def _centroid_sg(a):
@@ -41,6 +100,21 @@ class Splign:
     def _centroid(attn_map, object=None):
         # print(attn_map.shape) [1,64,64,1]
         H, W = attn_map.shape[-3], attn_map.shape[-2]
+
+        # # Applying softmax
+        # B, H, W, T = attn_map.shape
+        # attn_flat = attn_map.view(B, -1)
+        # temperature = 0.1
+        # attn_norm = F.softmax(attn_flat / temperature, dim=-1)
+        # attn_map = attn_norm.view(B, H, W, T)
+
+        # kernel_size = 3
+        # sigma = 0.5
+        # smoothing = GaussianSmoothing(channels=1, kernel_size=kernel_size, sigma=sigma, dim=2).cuda()
+        # input = attn_map.permute(0, 3, 1, 2)
+        # input = F.pad(input, (1, 1, 1, 1), mode='reflect')
+        # attn_map = smoothing(input)
+        # attn_map = attn_map.permute(0, 2, 3, 1)
 
         x_coords = torch.linspace(0, 1, W).to(attn_map.device)
         y_coords = torch.linspace(0, 1, H).to(attn_map.device)
@@ -97,6 +171,7 @@ class Splign:
         # # print(idxs)
 
         losses = []
+        attn_map_list = []
         if two_objects:
             object_token_mapping = []
             current_idx = 0
@@ -126,13 +201,15 @@ class Splign:
                 elif centroid_type == "mean":
                     obs_centroid = Splign._centroid(combined_attn_map)
 
+                attn_map_list.append(combined_attn_map)
                 centroids.append(obs_centroid)
 
                 if plot_centroid:
                     plot_attention_map(combined_attn_map, timestep+1, module_name,
                                     centroid=obs_centroid, object=objects[i],
                                     loss_type=loss_type, loss_num=loss_num,
-                                    prompt=prompt, margin=margin, alpha=alpha)
+                                    prompt=prompt, margin=margin, alpha=alpha,
+                                    attn_folder="attention_maps")
 
                 if self_guidance_mode:
                     shift = torch.tensor(shifts[i]).to(attn.device)
@@ -144,6 +221,34 @@ class Splign:
                 spatial_loss = Splign.spatial_loss(centroids, relationship, loss_type,
                                                               loss_num, alpha=alpha, margin=margin,
                                                               logger=logger)
+                # # MEAN
+                # thresh = 0.1
+                # for i, att_map in enumerate(attn_map_list):
+                #     if att_map.mean().item() < thresh:
+                #         print(objects[i], att_map.mean().item())
+                #         spatial_loss = spatial_loss + 0.5 * F.relu(thresh - att_map.mean())
+                #
+                # # MASKED MEAN
+                # thresh = 0.1
+                # for i, att_map in enumerate(attn_map_list):
+                #     threshold = att_map.mean()
+                #     mask = att_map >= threshold
+                #     masked_attn_map = att_map * mask
+                #
+                #     # mean of the masked region only
+                #     # TODO: sum the two attn maps and use the thresh on that
+                #     mask_sum = mask.sum().float()
+                #     if mask_sum > 0:
+                #         masked_mean = (masked_attn_map.sum() / mask_sum)
+                #
+                #         if masked_mean < thresh:
+                #             # print(objects[i], f"masked mean: {masked_mean.item()}")
+                #             spatial_loss = spatial_loss + 0.5 * F.relu(thresh - masked_mean)
+
+                # # PREVENT OBJECT OVERLAP
+                # loss_contrast = 1 - torch.nn.functional.cosine_similarity(attn_map_list[0].flatten().unsqueeze(dim=0), attn_map_list[1].flatten().unsqueeze(dim=0))
+                # spatial_loss = spatial_loss + loss_contrast
+
                 losses.append(spatial_loss)
 
         else:
@@ -171,6 +276,7 @@ class Splign:
             logger.info("y1: %s | y2: %s", obj1_y.item(), obj2_y.item())
 
         loss = 0
+        max_margin = 0.9
         if relationship in ["to the left of", "to the right of", "on the left of", "on the right of", "left of",
                             "right of", "near", "on side of", "next to"]:
             if relationship in ["to the left of", "on the left of", "left of", "near", "on side of"]:
@@ -195,6 +301,8 @@ class Splign:
             elif loss_type == "gelu":
                 loss_horizontal = F.gelu(margin - alpha * difference_x)
 
+            # object_presence = F.relu(torch.abs(difference_x) - max_margin)
+
             if logger:
                 logger.info("difference_x: %s | difference_x (scaled): %s | loss_horizontal: %s", difference_x.item(),
                             (alpha * difference_x).item(), loss_horizontal.item())
@@ -211,6 +319,7 @@ class Splign:
                 loss = loss_horizontal + loss_vertical_2
             # loss = loss_horizontal + lambda_param * loss_vertical_1
             # loss = loss_horizontal + lambda_param * loss_vertical_2
+            # loss = loss + object_presence
 
         if relationship in ["above", "below", "on the top of",
                             "on the bottom of"]:  # "above" in relationship or "top" in relationship or "below" in relationship or "bottom" in relationship:
@@ -235,6 +344,8 @@ class Splign:
             elif loss_type == "gelu":
                 loss_vertical = F.gelu(margin - alpha * difference_y)
 
+            # object_presence = F.relu(torch.abs(difference_y) - max_margin)
+
             if logger:
                 logger.info("difference_y: %s | difference_y (scaled): %s | loss_vertical: %s", difference_y.item(),
                             (alpha * difference_y).item(), loss_vertical.item())
@@ -251,4 +362,5 @@ class Splign:
                 loss = loss_vertical + loss_horizontal_2
             # loss = loss_vertical + lambda_param * loss_horizontal_1 # 4
             # loss = loss_vertical + lambda_param * loss_horizontal_2 # 5
+            # loss = loss + object_presence
         return loss

@@ -55,7 +55,7 @@ pip install --user --no-cache-dir git+https://github.com/facebookresearch/detect
 def __init__(self, src_rect, output_size, interp=Image.BILINEAR, fill=0): -> instead of LINEAR
 ```
 
-##### GenEvan
+##### GenEval
 The requirements for this benchmark were incompatible with the dependencies in the code so you have a make a new environment for it. Following these steps should work:
 
 ```
@@ -72,7 +72,7 @@ python -m mim install --user mmengine mmcv-full==1.7.2
 git clone https://github.com/open-mmlab/mmdetection.git
 cd mmdetection
 git checkout 2.x
-pip install --user -v -e .
+pip install -v -e .
 ```
 
 #### Run:

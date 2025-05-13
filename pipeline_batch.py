@@ -76,14 +76,20 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
     # print("num_images_per_prompt", num_images_per_prompt)
 
     if benchmark is not None or do_multiprocessing:
-        save_path = os.path.join("images", save_dir_name)
+        save_path = os.path.join("images", save_dir_name) # , 'failures'
         os.makedirs(save_path, exist_ok=True)
     else:
         save_path = ""
 
     for batch_start in range(0, len(prompts), batch_size):
         batch_prompts = prompts[batch_start:batch_start + batch_size]
-        # print("batch_prompts", batch_prompts)
+        print("batch_prompts", batch_prompts)
+
+        # a couch above a kite
+        # a toaster below a zebra
+        # a potted plant above a clock
+        # if batch_prompts[0] != "a toaster below a zebra":
+        #     continue
 
         if benchmark == "visor":
             seed = seeds[0]
@@ -385,12 +391,12 @@ def generate_images(config):
             "up_blocks.1.attentions.0.transformer_blocks.0.attn2",
             "up_blocks.1.attentions.1.transformer_blocks.0.attn2",
             "up_blocks.1.attentions.2.transformer_blocks.0.attn2",
-            "up_blocks.2.attentions.0.transformer_blocks.0.attn2",
-            "up_blocks.2.attentions.1.transformer_blocks.0.attn2",
-            "up_blocks.2.attentions.2.transformer_blocks.0.attn2",
-            "up_blocks.3.attentions.0.transformer_blocks.0.attn2",
-            "up_blocks.3.attentions.1.transformer_blocks.0.attn2",
-            "up_blocks.3.attentions.2.transformer_blocks.0.attn2"
+            # "up_blocks.2.attentions.0.transformer_blocks.0.attn2",
+            # "up_blocks.2.attentions.1.transformer_blocks.0.attn2",
+            # "up_blocks.2.attentions.2.transformer_blocks.0.attn2",
+            # "up_blocks.3.attentions.0.transformer_blocks.0.attn2",
+            # "up_blocks.3.attentions.1.transformer_blocks.0.attn2",
+            # "up_blocks.3.attentions.2.transformer_blocks.0.attn2"
         ]
 
     if update_latents:
@@ -470,6 +476,6 @@ def run_sweep_experiments(config):
 
 if __name__ == "__main__":
     config = get_config()
-    # generate_images(config)
+    generate_images(config)
 
-    run_sweep_experiments(config)
+    # run_sweep_experiments(config)
