@@ -40,6 +40,9 @@ def get_config():
     parser.add_argument("--num_inference_steps", default=1)
     parser.add_argument("--sg_t_start", default=1)
     parser.add_argument("--sg_t_end", default=1)
+    parser.add_argument("--sg_grad_wt", default=1)
+    parser.add_argument("--grad_norm_scale", default=False)
+    parser.add_argument("--target_guidance", default=3000)
 
     # t2i-comp-bench
     parser.add_argument("--port", default=2)
@@ -78,7 +81,8 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   loss_num="", alpha=1., self_guidance_mode=False, loss_type="sigmoid",
                   plot_centroid=False, save_aux=False, two_objects=False, weight_combinations=None,
                   do_multiprocessing=False, img_id="", update_latents=False, benchmark=None, centroid_type="sg",
-                  batch_size=1, model="model_name", run_base=False, smoothing=False, masked_mean=False):
+                  batch_size=1, model="model_name", run_base=False, smoothing=False, masked_mean=False,
+                  grad_norm_scale=False, target_guidance=3000.0):
     # print("num_images_per_prompt", num_images_per_prompt)
 
     if benchmark is not None or do_multiprocessing:
@@ -89,12 +93,12 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
 
     for batch_start in range(0, len(prompts), batch_size):
         batch_prompts = prompts[batch_start:batch_start + batch_size]
-        print("batch_prompts", batch_prompts)
+        # print("batch_prompts", batch_prompts)
 
         # a couch above a kite
         # a toaster below a zebra
         # a potted plant above a clock
-        # if batch_prompts[0] != "a toaster below a zebra":
+        # if batch_prompts[0] !=  "a mouse below a stop sign": # "a frisbee to the left of a person": # "a traffic light to the left of a fire hydrant"
         #     continue
 
         if benchmark == "visor":
@@ -134,7 +138,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                             batched_words.append(word_list)
             # print("words: ", batched_words)
 
-            if benchmark is not None or do_multiprocessing:
+            if benchmark is not None or do_multiprocessing: # _spatial_{loss_type}_target_guidance_{sg_grad_wt}_works_10_steps
                 filenames = [f"{prompt}_{i}.png" for prompt in batch_prompts]
                 # print("filenames", filenames)
             else:
@@ -188,7 +192,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                                self_guidance_mode=self_guidance_mode, loss_type=loss_type, loss_num=int(loss_num),
                                plot_centroid=plot_centroid, save_aux=save_aux, two_objects=two_objects,
                                update_latents=update_latents, img_id=img_id, smoothing=smoothing,
-                               masked_mean=masked_mean).images
+                               masked_mean=masked_mean, grad_norm_scale=grad_norm_scale, target_guidance=target_guidance).images
 
                     filtered_paths = [path for path, should_gen in zip(out_filenames, files_to_generate) if
                                       should_gen]
@@ -202,7 +206,8 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                vocab_spatial=[], loss_num=1, alpha=1, loss_type="relu", margin=0.1,
                self_guidance_mode=False, two_objects=False, plot_centroid=False, weight_combinations=None,
                do_multiprocessing=False, img_id="", update_latents=False, save_dir_name="", centroid_type="sg",
-               benchmark=None, batch_size=1, model="model_name", smoothing=False, masked_mean=False):
+               benchmark=None, batch_size=1, model="model_name", smoothing=False, masked_mean=False, grad_norm_scale=False,
+               target_guidance=3000.0):
     torch.cuda.set_device(gpu_id)
     device = torch.device(f"cuda:{gpu_id}")
 
@@ -225,7 +230,8 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                   do_multiprocessing=do_multiprocessing, img_id=img_id,
                   update_latents=update_latents, save_dir_name=save_dir_name,
                   centroid_type=centroid_type, benchmark=benchmark, batch_size=batch_size, model=model,
-                  smoothing=smoothing, masked_mean=masked_mean)
+                  smoothing=smoothing, masked_mean=masked_mean, grad_norm_scale=grad_norm_scale,
+                  target_guidance=target_guidance)
 
 
 def start_multiprocessing(attn_greenlist, json_filename, seeds,
@@ -234,7 +240,8 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                           loss_num, alpha, loss_type, margin, self_guidance_mode,
                           two_objects, plot_centroid, weight_combinations,
                           do_multiprocessing, img_id, update_latents, benchmark,
-                          save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean):
+                          save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean,
+                          grad_norm_scale, target_guidance):
     # MULTIPROCESSING
     # SHELL
     num_gpus = torch.cuda.device_count()
@@ -270,7 +277,8 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                                                 two_objects, plot_centroid, weight_combinations,
                                                 do_multiprocessing, img_id, update_latents, save_dir_name,
                                                 centroid_type,
-                                                benchmark, batch_size, model, smoothing, masked_mean))
+                                                benchmark, batch_size, model, smoothing, masked_mean,
+                                                grad_norm_scale, target_guidance))
         p.start()
         processes.append(p)
 
@@ -302,15 +310,12 @@ def generate_images(config):
     batch_size = int(config.batch_size)
     smoothing = bool(config.gaussian_smoothing)
     masked_mean = bool(config.masked_mean)
+    grad_norm_scale = bool(config.grad_norm_scale)
+    target_guidance = float(config.target_guidance)
 
-    num_inference_steps = int(config.num_inference_steps)
-    sg_t_start = int(config.sg_t_start)
-    sg_t_end = int(config.sg_t_end)
+    print("grad_norm_scale", grad_norm_scale)
+    print("target_guidance", target_guidance)
 
-    # print("num_inference_steps", num_inference_steps)
-    # print("sg_t_start", sg_t_start)
-    # print("sg_t_end", sg_t_end)
-    #
     # print("L2_norm: ", L2_norm)
     # print("self_guidance_mode: ", self_guidance_mode)
     # print("two_objects: ", two_objects)
@@ -362,7 +367,12 @@ def generate_images(config):
         for data in visor_data:
             prompt = data['text']
             all_prompts.append(prompt)
-            all_words[prompt] = [data['obj_1_attributes'][0], data["obj_2_attributes"][0]]
+            # all_words[prompt] = [data['obj_1_attributes'][0], data["obj_2_attributes"][0]]
+
+            all_words[prompt] = [
+                data['obj_1_attributes'][0].split()[1] if len(data['obj_1_attributes'][0].split()) > 1 else data['obj_1_attributes'][0],
+                data['obj_2_attributes'][0].split()[1] if len(data['obj_2_attributes'][0].split()) > 1 else data['obj_2_attributes'][0]
+            ]
 
         seeds = [42]
         vocab_spatial = ["to the left of", "to the right of", "above", "below"]
@@ -447,7 +457,7 @@ def generate_images(config):
         weight_combinations = [(0, 5.0, 0, 0)]
 
     sg_loss_rescale = 1000.  # to avoid numerical underflow, scale loss by this amount and then divide gradients after backprop
-    # sg_t_start = 0
+    sg_t_start = 0
 
     if self_guidance_mode:
         num_inference_steps = 64
@@ -457,13 +467,22 @@ def generate_images(config):
         num_inference_steps = 50
         sg_t_end = 25
 
-    # if model == "sd1.4" or model == "sd1.5" or model == "sd2.1" or model == "spright":
-    #     num_inference_steps = 200
-    #     sg_t_end = 25
+    if model == "sd1.4" or model == "sd1.5" or model == "sd2.1" or model == "spright":
+        num_inference_steps = 200
+        sg_t_end = 25
 
-    # print("num_inference_steps", num_inference_steps)
+    # sg_grad_wt = int(config.sg_grad_wt)
+    print("sg_grad_wt", sg_grad_wt)
 
     relationship = None
+
+    num_inference_steps = int(config.num_inference_steps)
+    sg_t_start = int(config.sg_t_start)
+    sg_t_end = int(config.sg_t_end)
+
+    print("num_inference_steps", num_inference_steps)
+    print("sg_t_start", sg_t_start)
+    print("sg_t_end", sg_t_end)
 
     if do_multiprocessing:
         start_multiprocessing(
@@ -473,15 +492,18 @@ def generate_images(config):
             loss_num, alpha, loss_type, margin, self_guidance_mode,
             two_objects, plot_centroid, weight_combinations,
             do_multiprocessing, img_id, update_latents, benchmark,
-            save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean)
+            save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean,
+            grad_norm_scale, target_guidance)
 
     else:
+        print(device)
         pipe = init_pipeline(device, model_information)
 
         save_aux = False  # True
         set_attention_processors(pipe, attn_greenlist, save_aux=save_aux)
 
-        print("Configuration: sg_start=", sg_t_start, "sg_end=", sg_t_end, "num_inference_steps=", num_inference_steps)
+        print("Configuration: sg_start =", sg_t_start, "sg_end =", sg_t_end, "num_inference_steps =", num_inference_steps,
+              "grad_norm_scale", grad_norm_scale, "target_guidance", target_guidance)
 
         run_base = False
         self_guidance(pipe, device, attn_greenlist, all_prompts, all_words, seeds, num_inference_steps, sg_t_start,
@@ -494,7 +516,8 @@ def generate_images(config):
                       loss_type=loss_type, margin=margin, plot_centroid=plot_centroid, two_objects=two_objects,
                       weight_combinations=weight_combinations, do_multiprocessing=do_multiprocessing, img_id=img_id,
                       update_latents=update_latents, benchmark=benchmark, centroid_type=centroid_type,
-                      batch_size=batch_size, model=model, run_base=run_base, smoothing=smoothing, masked_mean=masked_mean)
+                      batch_size=batch_size, model=model, run_base=run_base, smoothing=smoothing, masked_mean=masked_mean,
+                      grad_norm_scale=grad_norm_scale, target_guidance=target_guidance)
 
 
 def run_sweep_experiments(config):
@@ -538,8 +561,7 @@ def run_ablation_spatial_loss_intervention(config):
 
 if __name__ == "__main__":
     config = get_config()
-    run_ablation_spatial_loss_intervention(config)
-
     # generate_images(config)
 
+    run_ablation_spatial_loss_intervention(config)
     # run_sweep_experiments(config)

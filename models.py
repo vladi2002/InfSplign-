@@ -399,6 +399,15 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
         return StableDiffusionXLPipelineOutput(images=image)
 
 
+def set_scale(grad, correction=None, target_guidance=None, guidance_scale=None):
+    grad_norm = (grad * grad).mean().sqrt().item()
+    # print("grad_norm", grad_norm)
+    numerator = (correction * correction).mean().sqrt().item()
+    target_guidance = numerator * guidance_scale / (grad_norm + 1e-1) * target_guidance
+    # print("target_guidance", target_guidance)
+    return target_guidance
+
+
 class SpatialLossSDPipeline(StableDiffusionPipeline):
 
     def get_sg_aux(self, cfg=True, transpose=True):
@@ -428,6 +437,25 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                 del aux_module._aux
             except AttributeError:
                 pass
+
+    # @torch.no_grad()
+    # def compute_scores(self, latent, prompt):
+    #     decoded_latents = self.decode_latents(latent)
+    #     decoded_latents = torch.from_numpy(decoded_latents).permute(0, 3, 1, 2)
+    #
+    #     if isinstance(self.scorer, HPSScorer):
+    #
+    #         prompts = [prompt] * len(decoded_latents)
+    #         out = self.scorer.score(decoded_latents, prompts)
+    #
+    #     elif isinstance(self.scorer, FaceRecognitionScorer) or \
+    #             isinstance(self.scorer, ClipScorer):
+    #
+    #         out = self.scorer.score(decoded_latents, self.target_img)
+    #     else:
+    #         out = self.scorer.score(decoded_latents)
+    #
+    #     return out
 
     @torch.no_grad()
     def __call__(
@@ -470,7 +498,9 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
             update_latents=False,
             img_id=None,
             smoothing=False,
-            masked_mean=False
+            masked_mean=False,
+            grad_norm_scale=False,
+            target_guidance=3000
     ):
         # 0. Default height and width to unet
         height = height or self.unet.config.sample_size * self.vae_scale_factor
@@ -565,6 +595,8 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
             remaining = 25 * num_inference_steps // 32
             self_guidance_alternate_steps = list(range(first_steps, first_steps + remaining + 1, 2))
 
+        target_guidance = 3000
+
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
 
@@ -596,6 +628,10 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                     if do_classifier_free_guidance:
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                         noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+
+                    # TODO: CLIP
+                    # pred_original_temp = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).pred_original_sample
+                    # rewards = self.compute_scores(pred_original_temp, prompt)
 
                     ### SELF GUIDANCE
                     if logger is not None:
@@ -630,7 +666,7 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                                     words = edit['words']
                                     # print("words: ", words)
                                     relationship = edit.get('spatial', None)
-                                    # print("relationsship: ", relationship)
+                                    # print("relationship: ", relationship)
                                     if wt:
                                         tgt = edit.get('tgt')
                                         if tgt is not None:
@@ -663,16 +699,30 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
 
                                 sg_loss += sg_loss_b
 
+                        # print("loss", sg_loss.item())
                         sg_grad = torch.autograd.grad(sg_loss_rescale * sg_loss, latents)[0] / sg_loss_rescale
 
-                        # non_zero_values = sg_grad[sg_grad != 0]
-                        # print("Num non-zero values:", len(non_zero_values), "/", sg_grad.numel(), "mean", sg_grad.mean().item())
+                        # clip_reward = True
+
+                        if grad_norm_scale:
+                            correction = noise_pred_text - noise_pred_uncond
+                            target_guidance = set_scale(sg_grad, correction, target_guidance, guidance_scale)
+                            weighted_spatial_grad = target_guidance * sg_grad
+
+                        # print("correction", correction.min().item(), correction.max().item())
+                        # print("spatial_grad", sg_grad.min().item(), sg_grad.max().item())
+                        # print("weighted_spatial_grad", weighted_spatial_grad.min().item(), weighted_spatial_grad.max().item())
+                        # print("noise_pred", noise_pred.min().item(), noise_pred.max().item())
 
                         if logger is not None:
                             logger.info("Gradient mean: %s", sg_grad.mean().item())
 
                         if update_latents:
                             latents = latents - sg_grad_wt * sg_grad
+                        elif grad_norm_scale:
+                            noise_pred = noise_pred + weighted_spatial_grad
+                        # elif clip_reward:
+                        #     noise_pred =
                         else:
                             noise_pred = noise_pred + sg_grad_wt * sg_grad
 
