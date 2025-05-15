@@ -442,9 +442,9 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                 pass
 
     # @torch.enable_grad()
-    def compute_gradient(self, scorer, prompt, pred_original_sample):
+    def compute_gradient(self, scorer, prompt, pred_original_sample, clipping_value=10.0):
         pred_original_sample = pred_original_sample.detach()
-        pred_original_sample = torch.clamp(pred_original_sample, -10.0, 10.0)
+        pred_original_sample = torch.clamp(pred_original_sample, -clipping_value, clipping_value)
         im_pix_un = self.vae.decode(pred_original_sample.to(self.vae.dtype) / self.vae.config.scaling_factor).sample
         im_pix = ((im_pix_un / 2) + 0.5).clamp(0, 1).to(torch.float).cpu()
 
@@ -551,7 +551,9 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
             smoothing=False,
             masked_mean=False,
             grad_norm_scale=False,
-            target_guidance=3000
+            target_guidance=3000,
+            clipping_value=10.0,
+            use_clip_loss=False,
     ):
         # 0. Default height and width to unet
         global clip_objects
@@ -759,15 +761,14 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                         #     grad_b = torch.autograd.grad(sg_loss_b[b], latents, retain_graph=True)[0]
                         #     sg_grads.append(grad_b)
 
-                        clip_reward = True
-                        if clip_reward:
+                        if use_clip_loss:
                             latent_in = latents.detach().requires_grad_(True)
                             pred_original_sample = self.scheduler.step(noise_pred, t, latent_in, **extra_step_kwargs).pred_original_sample
 
                             obj1, obj2 = clip_objects[0], clip_objects[1]
 
-                            clip_loss_obj1 = self.compute_gradient(scorer, obj1, pred_original_sample)
-                            clip_loss_obj2 = self.compute_gradient(scorer, obj2, pred_original_sample)
+                            clip_loss_obj1 = self.compute_gradient(scorer, obj1, pred_original_sample, clipping_value=clipping_value)
+                            clip_loss_obj2 = self.compute_gradient(scorer, obj2, pred_original_sample, clipping_value=clipping_value)
                             # breakpoint()
                             clip_loss = clip_loss_obj1 + clip_loss_obj2
                             print("sg_loss", sg_loss.item())
