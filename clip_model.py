@@ -88,7 +88,7 @@ class ClipTextScorer(nn.Module):
 
         text_features = self.encode(y)
         logits_per_image = image_features @ text_features.t()  # TODO: Why *100?
-        return 1 / logits_per_image
+        return -1 * logits_per_image
 
     def encode(self, prompt):
         prompt_tokens = clip.tokenize(prompt).to('cuda')
