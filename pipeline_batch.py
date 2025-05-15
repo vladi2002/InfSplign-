@@ -93,7 +93,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
 
     for batch_start in range(0, len(prompts), batch_size):
         batch_prompts = prompts[batch_start:batch_start + batch_size]
-        # print("batch_prompts", batch_prompts)
+        print("batch_prompts", batch_prompts)
 
         # a couch above a kite
         # a toaster below a zebra
@@ -140,13 +140,14 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
 
             if benchmark is not None or do_multiprocessing: # _spatial_{loss_type}_target_guidance_{sg_grad_wt}_works_10_steps
                 filenames = [f"{prompt}_{i}.png" for prompt in batch_prompts]
-                # print("filenames", filenames)
+                print("filenames", filenames)
             else:
                 filenames = [f"{prompt}_{img_id}.png" for prompt in batch_prompts]
 
             out_filenames = [os.path.join(save_path, filename) for filename in filenames]
             existing_files = [os.path.exists(path) for path in out_filenames]
             files_to_generate = [not file_exists for file_exists in existing_files]
+            print(out_filenames)
 
             _, centroid_weight, _, _ = weight_combinations[0]
 
@@ -175,6 +176,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                 out = pipe(prompt=batch_prompts, generator=generators, num_inference_steps=num_inference_steps, save_aux=save_aux).images
                 base_filenames = [f"{prompt}_{model}_{i}.png" for prompt in batch_prompts]
                 base_out_filenames = [os.path.join(save_path, filename) for filename in base_filenames]
+                print("base_out_filenames", base_out_filenames)
                 for img, path in zip(out, base_out_filenames):
                     img.save(path)
 
@@ -376,7 +378,7 @@ def generate_images(config):
 
         seeds = [42]
         vocab_spatial = ["to the left of", "to the right of", "above", "below"]
-        num_images_per_prompt = 4
+        num_images_per_prompt = 1 # 4
         shifts = {
             "to the left of": [(0., 0.5), (1., 0.5)],
             "to the right of": [(1., 0.5), (0., 0.5)],
@@ -408,7 +410,8 @@ def generate_images(config):
 
     if benchmark is not None:
         save_dir_name = os.path.join(benchmark, f"{model}_{img_id}")
-    # print("save_dir_name", save_dir_name)
+    print("img_id", img_id)
+    print("save_dir_name", save_dir_name)
 
     if model == "sdxl":
         attn_greenlist = [
@@ -476,13 +479,13 @@ def generate_images(config):
 
     relationship = None
 
-    num_inference_steps = int(config.num_inference_steps)
-    sg_t_start = int(config.sg_t_start)
-    sg_t_end = int(config.sg_t_end)
-
-    print("num_inference_steps", num_inference_steps)
-    print("sg_t_start", sg_t_start)
-    print("sg_t_end", sg_t_end)
+    # num_inference_steps = int(config.num_inference_steps)
+    # sg_t_start = int(config.sg_t_start)
+    # sg_t_end = int(config.sg_t_end)
+    #
+    # print("num_inference_steps", num_inference_steps)
+    # print("sg_t_start", sg_t_start)
+    # print("sg_t_end", sg_t_end)
 
     if do_multiprocessing:
         start_multiprocessing(
@@ -561,7 +564,7 @@ def run_ablation_spatial_loss_intervention(config):
 
 if __name__ == "__main__":
     config = get_config()
-    # generate_images(config)
+    generate_images(config)
 
-    run_ablation_spatial_loss_intervention(config)
+    # run_ablation_spatial_loss_intervention(config)
     # run_sweep_experiments(config)
