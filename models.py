@@ -4,10 +4,12 @@ import os
 
 from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-from diffusers import StableDiffusionXLPipeline, StableDiffusionPipeline
+from diffusers import StableDiffusionXLPipeline, StableDiffusionPipeline, DDPMScheduler
 from diffusers.pipelines.stable_diffusion_xl.pipeline_output import StableDiffusionXLPipelineOutput
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 from utils.model_utils import search_sequence_numpy, setup_logger
+from diffusers.schedulers.scheduling_ddpm import DDPMSchedulerOutput
+from clip_model import ClipTextScorer
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -274,7 +276,6 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
                     # perform guidance
                     if do_classifier_free_guidance:
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                        correction = (noise_pred_text - noise_pred_uncond)
                         noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                     ### SELF GUIDANCE
@@ -338,6 +339,7 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
                                         edit_loss1 = torch.stack(lst1).mean()
                                         if logger is not None:
                                             logger.info(f"{function}: {edit_loss1.item()}")
+                                        
                                         sg_loss_b += wt * edit_loss1
 
                                 sg_loss += sg_loss_b
@@ -367,6 +369,8 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
                     if callback is not None and i % callback_steps == 0:
                         callback(i, t, latents)
 
+            # print(all_losses)
+            # exit()
         torch.cuda.empty_cache()
 
         if not save_aux:
@@ -399,6 +403,13 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
 
         return StableDiffusionXLPipelineOutput(images=image)
     
+def set_scale(grad, correction=None, target_guidance=None, guidance_scale=None):
+    grad_norm = (grad * grad).mean().sqrt().item()
+    # print("grad_norm", grad_norm)
+    numerator = (correction * correction).mean().sqrt().item()
+    target_guidance = numerator * guidance_scale / (grad_norm + 1e-1) * target_guidance
+    # print("target_guidance", target_guidance)
+    return target_guidance
 
 class SpatialLossSDPipeline(StableDiffusionPipeline):
 
@@ -429,13 +440,72 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                 del aux_module._aux
             except AttributeError:
                 pass
-    
-    def set_scale(self, grad, correction=None, target_guidance=None, guidance_scale=None):
-        grad_norm = (grad * grad).mean().sqrt().item()
-        target_guidance = (correction * correction).mean().sqrt().item() * guidance_scale / (grad_norm + 1e-8) * target_guidance 
-        if target_guidance > 150.0: target_guidance = 150.0
-        return target_guidance
-    
+
+    def compute_gradient(self, scorer, prompt, pred_original_sample):
+        pred_original_sample = pred_original_sample.detach()
+        pred_original_sample = torch.clamp(pred_original_sample, -10.0, 10.0)
+        im_pix_un = self.vae.decode(pred_original_sample.to(self.vae.dtype) / self.vae.config.scaling_factor).sample
+        im_pix = ((im_pix_un / 2) + 0.5).clamp(0, 1).to(torch.float).cpu()
+
+        if isinstance(scorer, ClipTextScorer):
+            prompts = [prompt] * len(im_pix)
+            loss = scorer.loss_fn(im_pix, prompts)
+        return loss
+
+        # grad = torch.autograd.grad(rewards.sum(), latent_in)[0]
+        #
+        # return grad.clone().cuda()
+
+    def predict_x0_from_xt(
+            self: DDPMScheduler,
+            model_output: torch.FloatTensor,
+            timestep: int,
+            sample: torch.FloatTensor,
+    ) -> Union[DDPMSchedulerOutput, Tuple]:
+        assert isinstance(self, DDPMScheduler)
+        if self.num_inference_steps is None:
+            raise ValueError(
+                "Number of inference steps is 'None', you need to run 'set_timesteps' after creating the scheduler"
+            )
+
+        t = timestep
+
+        prev_t = self.previous_timestep(t)
+
+        if model_output.shape[1] == sample.shape[1] * 2 and self.variance_type in ["learned", "learned_range"]:
+            model_output, predicted_variance = torch.split(model_output, sample.shape[1], dim=1)
+        else:
+            predicted_variance = None
+
+        # 1. compute alphas, betas
+        alpha_prod_t = self.alphas_cumprod[t]
+        alpha_prod_t_prev = self.alphas_cumprod[prev_t] if prev_t >= 0 else self.one
+        beta_prod_t = 1 - alpha_prod_t
+        current_alpha_t = alpha_prod_t / alpha_prod_t_prev
+
+        # 2. compute predicted original sample from predicted noise also called
+        # "predicted x_0" of formula (15) from https://arxiv.org/pdf/2006.11239.pdf
+        if self.config.prediction_type == "epsilon":
+            pred_original_sample = (sample - beta_prod_t ** (0.5) * model_output) / alpha_prod_t ** (0.5)
+        elif self.config.prediction_type == "sample":
+            pred_original_sample = model_output
+        elif self.config.prediction_type == "v_prediction":
+            pred_original_sample = (alpha_prod_t ** 0.5) * sample - (beta_prod_t ** 0.5) * model_output
+        else:
+            raise ValueError(
+                f"prediction_type given as {self.config.prediction_type} must be one of `epsilon`, `sample` or"
+                " `v_prediction`  for the DDPMScheduler."
+            )
+
+        # 3. Clip or threshold "predicted x_0"
+        if self.config.thresholding:
+            pred_original_sample = self._threshold_sample(pred_original_sample)
+        elif self.config.clip_sample:
+            pred_original_sample = pred_original_sample.clamp(
+                -self.config.clip_sample_range, self.config.clip_sample_range
+            )
+
+        return pred_original_sample.to(dtype=sample.dtype)
     @torch.no_grad()
     def __call__(
             self,
@@ -475,8 +545,12 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
             plot_centroid=False,
             two_objects=False,
             update_latents=False,
+            grad_norm_scale=False,
+            target_guidance=3000,
+            use_clip_reward=False,
     ):
         # 0. Default height and width to unet
+        global clip_objects
         height = height or self.unet.config.sample_size * self.vae_scale_factor
         width = width or self.unet.config.sample_size * self.vae_scale_factor
         # sd1.5 512 512
@@ -508,6 +582,7 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                             edit['idxs'] = np.arange(len(prompt_text_ids))
                         else:
                             words = edit['words']
+                            clip_objects = words
                             if not isinstance(words, list): 
                                 words = [words]
                             idxs = []
@@ -565,140 +640,157 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
             remaining = 25 * num_inference_steps // 32
             self_guidance_alternate_steps = list(range(first_steps, first_steps + remaining + 1, 2))
 
+        scorer = ClipTextScorer()
         
-        with self.progress_bar(total=num_inference_steps) as progress_bar:
-            for i, t in enumerate(timesteps):
-                
-                if not (sg_grad_wt > 0 and sg_edits is not None):
-                    do_self_guidance = False  # base sdxl
-                elif self_guidance_mode and i > sg_t_end and i + 1 not in self_guidance_alternate_steps:
-                    do_self_guidance = False  # self-guidance when we don't apply it
-                elif sg_t_start <= i < sg_t_end or (
-                        self_guidance_mode and i > sg_t_end and i + 1 in self_guidance_alternate_steps):
-                    do_self_guidance = True
-                else:
-                    do_self_guidance = False
-                
-                with torch.set_grad_enabled(do_self_guidance):
-                    latents.requires_grad_(do_self_guidance)
-                    # expand the latents if we are doing classifier free guidance
-                    latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
-                    latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+        # with self.progress_bar(total=num_inference_steps) as progress_bar:
+        all_losses = [[],[],[]]
 
-                    # predict the noise residual
-                    noise_pred = self.unet(
-                        latent_model_input,
-                        t,
-                        encoder_hidden_states=prompt_embeds,
-                        cross_attention_kwargs=cross_attention_kwargs,
-                    ).sample
-                    # print("noise_pred", noise_pred.shape) # sd1.5 - [2, 4, 64, 64] | sd2.1 - [2, 4, 96, 96]
+        for i, t in enumerate(timesteps):
+            
+            if not (sg_grad_wt > 0 and sg_edits is not None):
+                do_self_guidance = False  # base sdxl
+            elif self_guidance_mode and i > sg_t_end and i + 1 not in self_guidance_alternate_steps:
+                do_self_guidance = False  # self-guidance when we don't apply it
+            elif sg_t_start <= i < sg_t_end or (
+                    self_guidance_mode and i > sg_t_end and i + 1 in self_guidance_alternate_steps):
+                do_self_guidance = True
+            else:
+                do_self_guidance = False
+            
+            with torch.set_grad_enabled(do_self_guidance):
+                latents.requires_grad_(do_self_guidance)
+                # expand the latents if we are doing classifier free guidance
+                latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
+                latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
-                    if do_classifier_free_guidance:
-                        noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                        correction = (noise_pred_text - noise_pred_uncond)
-                        noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+                # predict the noise residual
+                noise_pred = self.unet(
+                    latent_model_input,
+                    t,
+                    encoder_hidden_states=prompt_embeds,
+                    cross_attention_kwargs=cross_attention_kwargs,
+                ).sample
+                # print("noise_pred", noise_pred.shape) # sd1.5 - [2, 4, 64, 64] | sd2.1 - [2, 4, 96, 96]
 
-                    ### SELF GUIDANCE
-                    if logger is not None:
-                        logger.info(f"Timestep {i}")
+                if do_classifier_free_guidance:
+                    noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                    noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
-                    if do_self_guidance and (sg_t_start <= i < sg_t_end or i + 1 in self_guidance_alternate_steps):
-                        sg_aux = self.get_sg_aux(do_classifier_free_guidance)  # here it's extracting the cond term
-                        sg_loss = 0
+                ### SELF GUIDANCE
+                if logger is not None:
+                    logger.info(f"Timestep {i}")
 
-                        batch_size = latents.shape[0]
+                if do_self_guidance and (sg_t_start <= i < sg_t_end or i + 1 in self_guidance_alternate_steps):
+                    sg_aux = self.get_sg_aux(do_classifier_free_guidance)  # here it's extracting the cond term
+                    sg_loss = 0
 
-                        for b in range(batch_size):
-                            prompt_b = prompt[b]
-                            edits_b = sg_edits[b]
-                            sg_loss_b = 0
+                    batch_size = latents.shape[0]
 
-                            for edit_key, edits in edits_b.items():  # keys: attn, last_attn, last_feats
-                                if isinstance(edit_key, str):
-                                    key_aux = sg_aux[edit_key]
-                                else:
-                                    key_aux = {'': {k: sg_aux[k] for k in edit_key}}
+                    for b in range(batch_size):
+                        prompt_b = prompt[b]
+                        edits_b = sg_edits[b]
+                        sg_loss_b = 0
 
-                                for edit in edits:  # dict inside 'attn' & ('last_attn', 'last_feats')
-                                    wt = edit.get('weight', 1.)
-                                    # print("wt: ", wt)
-                                    alpha = edit.get('alpha', 1.)
-                                    # print("alpha: ", alpha)
-                                    centorid_type = edit.get('centorid_type', None)
-                                    # print("centorid_type: ", centorid_type)
-                                    function = edit.get('function', None)
-                                    # print("function: ", function)
-                                    words = edit['words']
-                                    # print("words: ", words)
-                                    relationship = edit.get('spatial', None)
-                                    # print("relationsship: ", relationship)
-                                    if wt:
-                                        tgt = edit.get('tgt')
-                                        if tgt is not None:
-                                            if isinstance(edit_key, str):
-                                                tgt = tgt[edit_key]
-                                            else:
-                                                tgt = {'': {k: tgt[k] for k in edit_key}}
-                                        apply_edit = edit['fn']
-                                        lst1 = []
+                        for edit_key, edits in edits_b.items():  # keys: attn, last_attn, last_feats
+                            if isinstance(edit_key, str):
+                                key_aux = sg_aux[edit_key]
+                            else:
+                                key_aux = {'': {k: sg_aux[k] for k in edit_key}}
 
-                                        for module_name, v in key_aux.items():
-                                            result = apply_edit(v, b, i=i, idxs=edit['idxs'], **edit.get('kwargs', {}),
-                                                                tgt=tgt[module_name] if tgt is not None else None,
-                                                                L2=L2_norm, two_objects=two_objects,
-                                                                plot_centroid=plot_centroid,
-                                                                loss_type=loss_type, loss_num=loss_num, alpha=alpha,
-                                                                margin=margin,
-                                                                self_guidance_mode=self_guidance_mode, objects=words,
-                                                                prompt=prompt_b,
-                                                                module_name=module_name, relationship=relationship,
-                                                                centroid_type=centorid_type)
-                                            lst1.extend(result)
+                            for edit in edits:  # dict inside 'attn' & ('last_attn', 'last_feats')
+                                wt = edit.get('weight', 1.)
+                                # print("wt: ", wt)
+                                alpha = edit.get('alpha', 1.)
+                                # print("alpha: ", alpha)
+                                centorid_type = edit.get('centorid_type', None)
+                                # print("centorid_type: ", centorid_type)
+                                function = edit.get('function', None)
+                                # print("function: ", function)
+                                words = edit['words']
+                                # print("words: ", words)
+                                relationship = edit.get('spatial', None)
+                                # print("relationsship: ", relationship)
+                                if wt:
+                                    tgt = edit.get('tgt')
+                                    if tgt is not None:
+                                        if isinstance(edit_key, str):
+                                            tgt = tgt[edit_key]
+                                        else:
+                                            tgt = {'': {k: tgt[k] for k in edit_key}}
+                                    apply_edit = edit['fn']
+                                    lst1 = []
 
-                                        edit_loss1 = torch.stack(lst1).mean()
-                                        # print("result: ", edit_loss1)
-                                        if logger is not None:
-                                            logger.info(f"{function}: {edit_loss1.item()}")
-                                        sg_loss_b += wt * edit_loss1
+                                    for module_name, v in key_aux.items():
+                                        result = apply_edit(v, b, i=i, idxs=edit['idxs'], **edit.get('kwargs', {}),
+                                                            tgt=tgt[module_name] if tgt is not None else None,
+                                                            L2=L2_norm, two_objects=two_objects,
+                                                            plot_centroid=plot_centroid,
+                                                            loss_type=loss_type, loss_num=loss_num, alpha=alpha,
+                                                            margin=margin,
+                                                            self_guidance_mode=self_guidance_mode, objects=words,
+                                                            prompt=prompt_b,
+                                                            module_name=module_name, relationship=relationship,
+                                                            centroid_type=centorid_type)
+                                        lst1.extend(result)
 
-                                sg_loss += sg_loss_b
+                                    edit_loss1 = torch.stack(lst1).mean()
+                                    # print("result: ", edit_loss1)
+                                    if logger is not None:
+                                        logger.info(f"{function}: {edit_loss1.item()}")
+                                    sg_loss_b += wt * edit_loss1
 
-                        # def set_scale(self, grad, correction=None, target_guidance=None, guidance_scale=None):
-                        #     grad_norm = (grad * grad).mean().sqrt().item()
-                        #     target_guidance = (correction * correction).mean().sqrt().item() * guidance_scale / (grad_norm + 1e-8) * target_guidance 
-                        #     if target_guidance > 150.0: target_guidance = 150.0
-                        #     return target_guidance
+                            sg_loss += sg_loss_b
+
+                    if use_clip_reward:
+                        latent_in = latents.detach().requires_grad_(True)
+                        pred_original_sample = self.scheduler.step(noise_pred, t, latent_in, **extra_step_kwargs).pred_original_sample
+
+                        obj1, obj2 = clip_objects[0], clip_objects[1]
+
+                        clip_loss_obj1 = self.compute_gradient(scorer, obj1, pred_original_sample)
+                        clip_loss_obj2 = self.compute_gradient(scorer, obj2, pred_original_sample)
+                        # breakpoint()
+                        clip_loss = clip_loss_obj1 + clip_loss_obj2
+                        print("sg_loss", sg_loss.item())
+                        print("clip_loss", clip_loss.item())
+                        sg_loss = sg_loss + clip_loss
+
+                    sg_grad = torch.autograd.grad(sg_loss_rescale * sg_loss, latents)[0] / sg_loss_rescale
                         
-                        grad_norm_scale = True
-                        sg_grad = torch.autograd.grad(sg_loss_rescale * sg_loss, latents)[0] / sg_loss_rescale
-                        target_guidance = self.set_scale(sg_grad, correction, self.target_guidance, guidance_scale)
+                    # non_zero_values = sg_grad[sg_grad != 0]
+                    # print("Num non-zero values:", len(non_zero_values), "/", sg_grad.numel(), "mean", sg_grad.mean().item())
 
-                        # non_zero_values = sg_grad[sg_grad != 0]
-                        # print("Num non-zero values:", len(non_zero_values), "/", sg_grad.numel(), "mean", sg_grad.mean().item())
+                    if logger is not None:
+                        logger.info("Gradient mean: %s", sg_grad.mean().item())
 
-                        if logger is not None:
-                            logger.info("Gradient mean: %s", sg_grad.mean().item())
 
-                        if update_latents:
-                            latents = latents - sg_grad_wt * sg_grad
-                        elif grad_norm_scale:
-                            noise_pred = noise_pred + target_guidance * sg_grad
-                        else:
-                            noise_pred = noise_pred + sg_grad_wt * sg_grad
+                    all_losses[0].append(noise_pred.mean().item())
+                    if update_latents:
+                        latents = latents - sg_grad_wt * sg_grad
+                    elif grad_norm_scale:
+                        correction = noise_pred_text - noise_pred_uncond
+                        target_guidance = set_scale(sg_grad, correction, target_guidance, guidance_scale)
+                        weighted_spatial_grad = target_guidance * sg_grad
+                        noise_pred = noise_pred + weighted_spatial_grad
+                        all_losses[1].append(weighted_spatial_grad.mean().item())
+                    else:
+                        noise_pred = noise_pred + sg_grad_wt * sg_grad
+                    all_losses[2].append((sg_grad_wt * sg_grad).mean().item())
 
-                        assert not noise_pred.isnan().any()
-                    latents.detach()
-                    ### END SELF GUIDANCE
-                
-                # compute the previous noisy sample x_t -> x_t-1
-                latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).prev_sample # , generator=generator
+                    assert not noise_pred.isnan().any()
+                latents.detach()
 
-                # call the callback, if provided
-                if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
-                    progress_bar.update()
-                    if callback is not None and i % callback_steps == 0:
-                        callback(i, t, latents)
+                ### END SELF GUIDANCE
+            
+            # compute the previous noisy sample x_t -> x_t-1
+            latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).prev_sample # , generator=generator
+
+            # call the callback, if provided
+            if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
+                # progress_bar.update()
+                if callback is not None and i % callback_steps == 0:
+                    callback(i, t, latents)
+        # print(all_losses)
 
         torch.cuda.empty_cache()
 
