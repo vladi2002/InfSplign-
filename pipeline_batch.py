@@ -43,7 +43,7 @@ def get_config():
     parser.add_argument("--sg_grad_wt", default=1)
     parser.add_argument("--grad_norm_scale", default=False)
     parser.add_argument("--target_guidance", default=3000)
-    parser.add_argument("--clipping_value", default=10.0)
+    parser.add_argument("--clip_weight", default=1.0)
     parser.add_argument("--use_clip_loss", default=False)
 
     # t2i-comp-bench
@@ -84,7 +84,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   plot_centroid=False, save_aux=False, two_objects=False, weight_combinations=None,
                   do_multiprocessing=False, img_id="", update_latents=False, benchmark=None, centroid_type="sg",
                   batch_size=1, model="model_name", run_base=False, smoothing=False, masked_mean=False,
-                  grad_norm_scale=False, target_guidance=3000.0, clipping_value=10.0, use_clip_loss=False):
+                  grad_norm_scale=False, target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False):
     # print("num_images_per_prompt", num_images_per_prompt)
 
     if benchmark is not None or do_multiprocessing:
@@ -197,7 +197,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                                plot_centroid=plot_centroid, save_aux=save_aux, two_objects=two_objects,
                                update_latents=update_latents, img_id=img_id, smoothing=smoothing,
                                masked_mean=masked_mean, grad_norm_scale=grad_norm_scale, target_guidance=target_guidance,
-                               clipping_value=clipping_value, use_clip_loss=use_clip_loss).images
+                               clip_weight=clip_weight, use_clip_loss=use_clip_loss).images
 
                     filtered_paths = [path for path, should_gen in zip(out_filenames, files_to_generate) if
                                       should_gen]
@@ -212,7 +212,7 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                self_guidance_mode=False, two_objects=False, plot_centroid=False, weight_combinations=None,
                do_multiprocessing=False, img_id="", update_latents=False, save_dir_name="", centroid_type="sg",
                benchmark=None, batch_size=1, model="model_name", smoothing=False, masked_mean=False, grad_norm_scale=False,
-               target_guidance=3000.0, clipping_value=10.0, use_clip_loss=False):
+               target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False):
     torch.cuda.set_device(gpu_id)
     device = torch.device(f"cuda:{gpu_id}")
 
@@ -236,7 +236,7 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                   update_latents=update_latents, save_dir_name=save_dir_name,
                   centroid_type=centroid_type, benchmark=benchmark, batch_size=batch_size, model=model,
                   smoothing=smoothing, masked_mean=masked_mean, grad_norm_scale=grad_norm_scale,
-                  target_guidance=target_guidance, clipping_value=clipping_value, use_clip_loss=use_clip_loss)
+                  target_guidance=target_guidance, clip_weight=clip_weight, use_clip_loss=use_clip_loss)
 
 
 def start_multiprocessing(attn_greenlist, json_filename, seeds,
@@ -246,7 +246,7 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                           two_objects, plot_centroid, weight_combinations,
                           do_multiprocessing, img_id, update_latents, benchmark,
                           save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean,
-                          grad_norm_scale, target_guidance, clipping_value, use_clip_loss):
+                          grad_norm_scale, target_guidance, clip_weight, use_clip_loss):
     # MULTIPROCESSING
     # SHELL
     num_gpus = torch.cuda.device_count()
@@ -283,7 +283,7 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                                                 do_multiprocessing, img_id, update_latents, save_dir_name,
                                                 centroid_type,
                                                 benchmark, batch_size, model, smoothing, masked_mean,
-                                                grad_norm_scale, target_guidance, clipping_value, use_clip_loss))
+                                                grad_norm_scale, target_guidance, clip_weight, use_clip_loss))
         p.start()
         processes.append(p)
 
@@ -317,7 +317,7 @@ def generate_images(config):
     masked_mean = bool(config.masked_mean)
     grad_norm_scale = bool(config.grad_norm_scale)
     target_guidance = float(config.target_guidance)
-    clipping_value = float(config.clipping_value)
+    clip_weight = float(config.clip_weight)
     use_clip_loss = bool(config.use_clip_loss)
 
     print("grad_norm_scale", grad_norm_scale)
@@ -476,8 +476,8 @@ def generate_images(config):
         sg_t_end = 25
 
     if model == "sd1.4" or model == "sd1.5" or model == "sd2.1" or model == "spright":
-        num_inference_steps = 200
-        sg_t_end = 25
+        num_inference_steps = 500
+        sg_t_end = 125
 
     # sg_grad_wt = int(config.sg_grad_wt)
     print("sg_grad_wt", sg_grad_wt)
@@ -501,7 +501,7 @@ def generate_images(config):
             two_objects, plot_centroid, weight_combinations,
             do_multiprocessing, img_id, update_latents, benchmark,
             save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean,
-            grad_norm_scale, target_guidance,clipping_value, use_clip_loss)
+            grad_norm_scale, target_guidance, clip_weight, use_clip_loss)
 
     else:
         print(device)
@@ -525,7 +525,7 @@ def generate_images(config):
                       weight_combinations=weight_combinations, do_multiprocessing=do_multiprocessing, img_id=img_id,
                       update_latents=update_latents, benchmark=benchmark, centroid_type=centroid_type,
                       batch_size=batch_size, model=model, run_base=run_base, smoothing=smoothing, masked_mean=masked_mean,
-                      grad_norm_scale=grad_norm_scale, target_guidance=target_guidance, clipping_value=clipping_value,
+                      grad_norm_scale=grad_norm_scale, target_guidance=target_guidance, clip_weight=clip_weight,
                       use_clip_loss=use_clip_loss)
 
 

@@ -411,6 +411,59 @@ def set_scale(grad, correction=None, target_guidance=None, guidance_scale=None):
     return target_guidance
 
 
+def predict_x0_from_xt(
+        scheduler: DDPMScheduler,
+        model_output: torch.FloatTensor,
+        timestep: int,
+        sample: torch.FloatTensor,
+) -> Union[DDPMSchedulerOutput, Tuple]:
+
+    assert isinstance(scheduler, DDPMScheduler)
+    if scheduler.num_inference_steps is None:
+        raise ValueError(
+            "Number of inference steps is 'None', you need to run 'set_timesteps' after creating the scheduler"
+        )
+
+    t = timestep
+
+    prev_t = scheduler.previous_timestep(t)
+
+    if model_output.shape[1] == sample.shape[1] * 2 and scheduler.variance_type in ["learned", "learned_range"]:
+        model_output, predicted_variance = torch.split(model_output, sample.shape[1], dim=1)
+    else:
+        predicted_variance = None
+
+    # 1. compute alphas, betas
+    alpha_prod_t = scheduler.alphas_cumprod[t]
+    alpha_prod_t_prev = scheduler.alphas_cumprod[prev_t] if prev_t >= 0 else scheduler.one
+    beta_prod_t = 1 - alpha_prod_t
+    current_alpha_t = alpha_prod_t / alpha_prod_t_prev
+
+    # 2. compute predicted original sample from predicted noise also called
+    # "predicted x_0" of formula (15) from https://arxiv.org/pdf/2006.11239.pdf
+    if scheduler.config.prediction_type == "epsilon":
+        pred_original_sample = (sample - beta_prod_t ** (0.5) * model_output) / alpha_prod_t ** (0.5)
+    elif scheduler.config.prediction_type == "sample":
+        pred_original_sample = model_output
+    elif scheduler.config.prediction_type == "v_prediction":
+        pred_original_sample = (alpha_prod_t ** 0.5) * sample - (beta_prod_t ** 0.5) * model_output
+    else:
+        raise ValueError(
+            f"prediction_type given as {scheduler.config.prediction_type} must be one of `epsilon`, `sample` or"
+            " `v_prediction`  for the DDPMScheduler."
+        )
+
+    # 3. Clip or threshold "predicted x_0"
+    if scheduler.config.thresholding:
+        pred_original_sample = scheduler._threshold_sample(pred_original_sample)
+    elif scheduler.config.clip_sample:
+        pred_original_sample = pred_original_sample.clamp(
+            -scheduler.config.clip_sample_range, scheduler.config.clip_sample_range
+        )
+
+    return pred_original_sample.to(dtype=sample.dtype)
+
+
 class SpatialLossSDPipeline(StableDiffusionPipeline):
 
     def get_sg_aux(self, cfg=True, transpose=True):
@@ -442,9 +495,7 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                 pass
 
     # @torch.enable_grad()
-    def compute_gradient(self, scorer, prompt, pred_original_sample, clipping_value=10.0):
-        pred_original_sample = pred_original_sample.detach()
-        pred_original_sample = torch.clamp(pred_original_sample, -clipping_value, clipping_value)
+    def compute_gradient(self, scorer, prompt, pred_original_sample):
         im_pix_un = self.vae.decode(pred_original_sample.to(self.vae.dtype) / self.vae.config.scaling_factor).sample
         im_pix = ((im_pix_un / 2) + 0.5).clamp(0, 1).to(torch.float).cpu()
 
@@ -452,61 +503,6 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
             prompts = [prompt] * len(im_pix)
             loss = scorer.loss_fn(im_pix, prompts)
         return loss
-
-        # grad = torch.autograd.grad(rewards.sum(), latent_in)[0]
-        #
-        # return grad.clone().cuda()
-
-    def predict_x0_from_xt(
-            self: DDPMScheduler,
-            model_output: torch.FloatTensor,
-            timestep: int,
-            sample: torch.FloatTensor,
-    ) -> Union[DDPMSchedulerOutput, Tuple]:
-        assert isinstance(self, DDPMScheduler)
-        if self.num_inference_steps is None:
-            raise ValueError(
-                "Number of inference steps is 'None', you need to run 'set_timesteps' after creating the scheduler"
-            )
-
-        t = timestep
-
-        prev_t = self.previous_timestep(t)
-
-        if model_output.shape[1] == sample.shape[1] * 2 and self.variance_type in ["learned", "learned_range"]:
-            model_output, predicted_variance = torch.split(model_output, sample.shape[1], dim=1)
-        else:
-            predicted_variance = None
-
-        # 1. compute alphas, betas
-        alpha_prod_t = self.alphas_cumprod[t]
-        alpha_prod_t_prev = self.alphas_cumprod[prev_t] if prev_t >= 0 else self.one
-        beta_prod_t = 1 - alpha_prod_t
-        current_alpha_t = alpha_prod_t / alpha_prod_t_prev
-
-        # 2. compute predicted original sample from predicted noise also called
-        # "predicted x_0" of formula (15) from https://arxiv.org/pdf/2006.11239.pdf
-        if self.config.prediction_type == "epsilon":
-            pred_original_sample = (sample - beta_prod_t ** (0.5) * model_output) / alpha_prod_t ** (0.5)
-        elif self.config.prediction_type == "sample":
-            pred_original_sample = model_output
-        elif self.config.prediction_type == "v_prediction":
-            pred_original_sample = (alpha_prod_t ** 0.5) * sample - (beta_prod_t ** 0.5) * model_output
-        else:
-            raise ValueError(
-                f"prediction_type given as {self.config.prediction_type} must be one of `epsilon`, `sample` or"
-                " `v_prediction`  for the DDPMScheduler."
-            )
-
-        # 3. Clip or threshold "predicted x_0"
-        if self.config.thresholding:
-            pred_original_sample = self._threshold_sample(pred_original_sample)
-        elif self.config.clip_sample:
-            pred_original_sample = pred_original_sample.clamp(
-                -self.config.clip_sample_range, self.config.clip_sample_range
-            )
-
-        return pred_original_sample.to(dtype=sample.dtype)
 
     @torch.no_grad()
     def __call__(
@@ -552,7 +548,7 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
             masked_mean=False,
             grad_norm_scale=False,
             target_guidance=3000,
-            clipping_value=10.0,
+            clip_weight=1.0,
             use_clip_loss=False,
     ):
         # 0. Default height and width to unet
@@ -754,30 +750,24 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
 
                                 sg_loss += sg_loss_b
 
-                        # print("loss", sg_loss.item())
-                        # sg_grad = torch.autograd.grad(sg_loss_rescale * sg_loss, latents)[0] / sg_loss_rescale
-
-                        # for b in range(batch_size):
-                        #     grad_b = torch.autograd.grad(sg_loss_b[b], latents, retain_graph=True)[0]
-                        #     sg_grads.append(grad_b)
-
                         if use_clip_loss:
                             latent_in = latents.detach().requires_grad_(True)
-                            pred_original_sample = self.scheduler.step(noise_pred, t, latent_in, **extra_step_kwargs).pred_original_sample
+                            pred_original_sample = predict_x0_from_xt(self.scheduler, noise_pred, t, latent_in)
 
                             obj1, obj2 = clip_objects[0], clip_objects[1]
-
-                            clip_loss_obj1 = self.compute_gradient(scorer, obj1, pred_original_sample, clipping_value=clipping_value)
-                            clip_loss_obj2 = self.compute_gradient(scorer, obj2, pred_original_sample, clipping_value=clipping_value)
                             # breakpoint()
+
+                            clip_loss_obj1 = self.compute_gradient(scorer, obj1, pred_original_sample)
+                            clip_loss_obj2 = self.compute_gradient(scorer, obj2, pred_original_sample)
                             clip_loss = clip_loss_obj1 + clip_loss_obj2
+
+                            clip_grad = torch.autograd.grad(clip_loss, latent_in, retain_graph=True)[0]
                             print("sg_loss", sg_loss.item())
                             print("clip_loss", clip_loss.item())
-                            sg_loss = sg_loss + clip_loss
 
-                        # print("sg_loss", sg_loss.item())
-                        sg_grad = torch.autograd.grad(sg_loss_rescale * sg_loss, latents)[0] / sg_loss_rescale
-                        noise_pred = noise_pred + sg_grad_wt * sg_grad
+                        # breakpoint()
+                        sg_grad = torch.autograd.grad(sg_loss, latents, retain_graph=True)[0] #/ sg_loss_rescale
+                        noise_pred = noise_pred + sg_grad_wt * sg_grad + clip_weight * clip_grad
                         # print("sg_grad", sg_grad.min().item(), sg_grad.max().item())
                         # print("noise_pred", noise_pred)
 
@@ -785,28 +775,6 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                         #     correction = noise_pred_text - noise_pred_uncond
                         #     target_guidance = set_scale(sg_grad, correction, target_guidance, guidance_scale)
                         #     weighted_spatial_grad = target_guidance * sg_grad
-
-                        # print("correction", correction.min().item(), correction.max().item())
-                        # print("spatial_grad", sg_grad.min().item(), sg_grad.max().item())
-                        # print("weighted_spatial_grad", weighted_spatial_grad.min().item(), weighted_spatial_grad.max().item())
-                        # print("noise_pred", noise_pred.min().item(), noise_pred.max().item())
-
-                        # if logger is not None:
-                        #     logger.info("Gradient mean: %s", sg_grad.mean().item())
-
-                        # print("sg_loss", sg_loss_b.item())
-                        # print("clip_loss", clip_loss.item())
-                        # total_loss = sg_loss_rescale * sg_loss + clip_loss
-
-                        # breakpoint()
-                        # if update_latents:
-                        #     latents = latents - sg_grad_wt * sg_grad
-                        # elif grad_norm_scale:
-                        #     noise_pred = noise_pred + weighted_spatial_grad
-                        # elif clip_reward:
-                        #     noise_pred =
-                        # else:
-                        #     noise_pred = noise_pred + sg_grad_wt * sg_grad
 
                         assert not noise_pred.isnan().any()
                     latents.detach()
