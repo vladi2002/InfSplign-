@@ -204,6 +204,7 @@ class Splign:
 
                 attn_map_list.append(combined_attn_map)
                 centroids.append(obs_centroid)
+                # print(f"centroid {objects[i]}", obs_centroid)
 
                 if plot_centroid:
                     plot_attention_map(combined_attn_map, timestep + 1, module_name,
@@ -230,22 +231,22 @@ class Splign:
                 #         spatial_loss = spatial_loss + 0.5 * F.relu(thresh - att_map.mean())
                 #
                 # # MASKED MEAN
-                if masked_mean:
-                    thresh = 0.1
-                    for i, att_map in enumerate(attn_map_list):
-                        threshold = att_map.mean()
-                        mask = att_map >= threshold
-                        masked_attn_map = att_map * mask
-
-                        # mean of the masked region only
-                        # TODO: sum the two attn maps and use the thresh on that
-                        mask_sum = mask.sum().float()
-                        if mask_sum > 0:
-                            masked_mean = (masked_attn_map.sum() / mask_sum)
-
-                            if masked_mean < thresh:
-                                # print(objects[i], f"masked mean: {masked_mean.item()}")
-                                spatial_loss = spatial_loss + 0.5 * F.relu(thresh - masked_mean)
+                # if masked_mean:
+                #     thresh = 0.1
+                #     for i, att_map in enumerate(attn_map_list):
+                #         threshold = att_map.mean()
+                #         mask = att_map >= threshold
+                #         masked_attn_map = att_map * mask
+                #
+                #         # mean of the masked region only
+                #         # TODO: sum the two attn maps and use the thresh on that
+                #         mask_sum = mask.sum().float()
+                #         if mask_sum > 0:
+                #             masked_mean = (masked_attn_map.sum() / mask_sum)
+                #
+                #             if masked_mean < thresh:
+                #                 # print(objects[i], f"masked mean: {masked_mean.item()}")
+                #                 spatial_loss = spatial_loss + 0.5 * F.relu(thresh - masked_mean)
 
                 # # PREVENT OBJECT OVERLAP
                 # loss_contrast = 1 - torch.nn.functional.cosine_similarity(attn_map_list[0].flatten().unsqueeze(dim=0), attn_map_list[1].flatten().unsqueeze(dim=0))

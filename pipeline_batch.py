@@ -93,6 +93,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
     else:
         save_path = ""
 
+    # prompts = ["a cat to the left of a tv", "a cat to the right of a tv", "a cat above a tv", "a cat below a tv"]
     for batch_start in range(0, len(prompts), batch_size):
         batch_prompts = prompts[batch_start:batch_start + batch_size]
         print("batch_prompts", batch_prompts)
@@ -138,7 +139,8 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                     for prompt in batch_prompts:
                         if word_list[0] in prompt:
                             batched_words.append(word_list)
-            # print("words: ", batched_words)
+            # batched_words = [['cat', 'tv']]
+            print("words: ", batched_words)
 
             if benchmark is not None or do_multiprocessing: # _spatial_{loss_type}_target_guidance_{sg_grad_wt}_works_10_steps
                 filenames = [f"{prompt}_{i}.png" for prompt in batch_prompts]
@@ -182,7 +184,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                 for img, path in zip(out, base_out_filenames):
                     img.save(path)
 
-            # print("SELF-GUIDANCE")
+            print("SELF-GUIDANCE")
             if any(files_to_generate):
                 filtered_prompts = [p for p, should_gen in zip(batch_prompts, files_to_generate) if should_gen]
                 filtered_generators = [g for g, should_gen in zip(generators, files_to_generate) if should_gen]
@@ -383,7 +385,7 @@ def generate_images(config):
 
         seeds = [42]
         vocab_spatial = ["to the left of", "to the right of", "above", "below"]
-        num_images_per_prompt = 1 # 4
+        num_images_per_prompt = 4
         shifts = {
             "to the left of": [(0., 0.5), (1., 0.5)],
             "to the right of": [(1., 0.5), (0., 0.5)],
@@ -473,7 +475,7 @@ def generate_images(config):
 
     if model == "sdxl":
         num_inference_steps = 50
-        sg_t_end = 25
+        sg_t_end = 12
 
     if model == "sd1.4" or model == "sd1.5" or model == "sd2.1" or model == "spright":
         num_inference_steps = 500

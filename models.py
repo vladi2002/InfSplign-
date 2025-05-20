@@ -417,7 +417,6 @@ def predict_x0_from_xt(
         timestep: int,
         sample: torch.FloatTensor,
 ) -> Union[DDPMSchedulerOutput, Tuple]:
-
     assert isinstance(scheduler, DDPMScheduler)
     if scheduler.num_inference_steps is None:
         raise ValueError(
@@ -690,14 +689,14 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
 
                     if do_self_guidance and (sg_t_start <= i < sg_t_end or i + 1 in self_guidance_alternate_steps):
                         sg_aux = self.get_sg_aux(do_classifier_free_guidance)  # here it's extracting the cond term
-                        sg_loss = 0
+                        spatial_losses = []
 
                         batch_size = latents.shape[0]
 
                         for b in range(batch_size):
                             prompt_b = prompt[b]
                             edits_b = sg_edits[b]
-                            sg_loss_b = 0
+                            spatial_loss_b = 0
 
                             for edit_key, edits in edits_b.items():  # keys: attn, last_attn, last_feats
                                 if isinstance(edit_key, str):
@@ -739,16 +738,18 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                                                                 prompt=prompt_b,
                                                                 module_name=module_name, relationship=relationship,
                                                                 centroid_type=centorid_type,
-                                                                img_id=img_id, smoothing=smoothing, masked_mean=masked_mean)
+                                                                img_id=img_id, smoothing=smoothing,
+                                                                masked_mean=masked_mean)
                                             lst1.extend(result)
 
                                         edit_loss1 = torch.stack(lst1).mean()
                                         # print("result: ", edit_loss1)
                                         if logger is not None:
                                             logger.info(f"{function}: {edit_loss1.item()}")
-                                        sg_loss_b += wt * edit_loss1
+                                        spatial_loss_b += wt * edit_loss1
 
-                                sg_loss += sg_loss_b
+                                # right now there is just one edit dictionary!!!
+                            spatial_losses.append(spatial_loss_b)
 
                         if use_clip_loss:
                             latent_in = latents.detach().requires_grad_(True)
@@ -766,10 +767,30 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                             print("clip_loss", clip_loss.item())
 
                         # breakpoint()
-                        sg_grad = torch.autograd.grad(sg_loss, latents, retain_graph=True)[0] #/ sg_loss_rescale
-                        noise_pred = noise_pred + sg_grad_wt * sg_grad + clip_weight * clip_grad
-                        # print("sg_grad", sg_grad.min().item(), sg_grad.max().item())
-                        # print("noise_pred", noise_pred)
+                        spatial_losses_batch = torch.stack(spatial_losses)
+                        spatial_grad = torch.autograd.grad(spatial_losses_batch, latents,
+                                                           grad_outputs=torch.ones_like(spatial_losses_batch),
+                                                           retain_graph=True)[0]  # no underflow / sg_loss_rescale
+                        # # checking the first sample -> [0]
+                        # idx = torch.argmin(noise_pred[0])
+                        # print("grad at idx", spatial_grad[0].flatten()[idx].item())
+                        # print("before", noise_pred[0].flatten()[idx].item())
+                        # noise_pred_before = noise_pred.clone()
+                        if use_clip_loss:
+                            noise_pred = noise_pred + sg_grad_wt * spatial_grad + clip_weight * clip_grad
+                        else:
+                            noise_pred = noise_pred + sg_grad_wt * spatial_grad
+                        # noise_pred_after = noise_pred
+                        # expected = noise_pred_before + sg_grad_wt * spatial_grad
+                        # print("max error", (expected - noise_pred_after).abs().max().item())
+
+                        # for b in range(batch_size):
+                        #     expected_b = noise_pred_before[b] + sg_grad_wt * spatial_grad[b]
+                        #     actual_b = noise_pred_after[b]
+                        #     error = (expected_b - actual_b).abs().max().item()
+                        #     print(f"[Sample {b}] max error: {error}")
+
+                        # print("after", noise_pred[0].flatten()[idx].item())
 
                         # if grad_norm_scale:
                         #     correction = noise_pred_text - noise_pred_uncond

@@ -8,6 +8,7 @@ import logging
 
 from attn_processor_batch import SelfGuidanceAttnProcessor2_0
 
+
 def log_memory_usage():
     # CPU RAM usage
     process = psutil.Process(os.getpid())
@@ -102,6 +103,7 @@ def set_attention_processors(pipe, attn_greenlist, save_aux=False):
     # up_blocks.0.attentions.1.transformer_blocks.2.attn2
     # up_blocks.0.attentions.1.transformer_blocks.3.attn2
 
+    # attn_layers = []
     for name, block in pipe.unet.named_modules():
         if isinstance(block, (
                 diffusers.models.unets.unet_2d_blocks.CrossAttnDownBlock2D,
