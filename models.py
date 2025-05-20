@@ -16,9 +16,68 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
+def set_scale(grad, correction=None, target_guidance=None, guidance_scale=None):
+    grad_norm = (grad * grad).mean().sqrt().item()
+    # print("grad_norm", grad_norm)
+    numerator = (correction * correction).mean().sqrt().item()
+    target_guidance = numerator * guidance_scale / (grad_norm + 1e-1) * target_guidance
+    # print("target_guidance", target_guidance)
+    return target_guidance
+
+
+def predict_x0_from_xt(
+        scheduler: DDPMScheduler,
+        model_output: torch.FloatTensor,
+        timestep: int,
+        sample: torch.FloatTensor,
+) -> Union[DDPMSchedulerOutput, Tuple]:
+    assert isinstance(scheduler, DDPMScheduler)
+    if scheduler.num_inference_steps is None:
+        raise ValueError(
+            "Number of inference steps is 'None', you need to run 'set_timesteps' after creating the scheduler"
+        )
+
+    t = timestep
+
+    prev_t = scheduler.previous_timestep(t)
+
+    if model_output.shape[1] == sample.shape[1] * 2 and scheduler.variance_type in ["learned", "learned_range"]:
+        model_output, predicted_variance = torch.split(model_output, sample.shape[1], dim=1)
+    else:
+        predicted_variance = None
+
+    # 1. compute alphas, betas
+    alpha_prod_t = scheduler.alphas_cumprod[t]
+    alpha_prod_t_prev = scheduler.alphas_cumprod[prev_t] if prev_t >= 0 else scheduler.one
+    beta_prod_t = 1 - alpha_prod_t
+    current_alpha_t = alpha_prod_t / alpha_prod_t_prev
+
+    # 2. compute predicted original sample from predicted noise also called
+    # "predicted x_0" of formula (15) from https://arxiv.org/pdf/2006.11239.pdf
+    if scheduler.config.prediction_type == "epsilon":
+        pred_original_sample = (sample - beta_prod_t ** (0.5) * model_output) / alpha_prod_t ** (0.5)
+    elif scheduler.config.prediction_type == "sample":
+        pred_original_sample = model_output
+    elif scheduler.config.prediction_type == "v_prediction":
+        pred_original_sample = (alpha_prod_t ** 0.5) * sample - (beta_prod_t ** 0.5) * model_output
+    else:
+        raise ValueError(
+            f"prediction_type given as {scheduler.config.prediction_type} must be one of `epsilon`, `sample` or"
+            " `v_prediction`  for the DDPMScheduler."
+        )
+
+    # 3. Clip or threshold "predicted x_0"
+    if scheduler.config.thresholding:
+        pred_original_sample = scheduler._threshold_sample(pred_original_sample)
+    elif scheduler.config.clip_sample:
+        pred_original_sample = pred_original_sample.clamp(
+            -scheduler.config.clip_sample_range, scheduler.config.clip_sample_range
+        )
+
+    return pred_original_sample.to(dtype=sample.dtype)
+
+
 class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
-    # TODO: here they create the dictionary where they store the attention maps
-    # TODO: with .chunk(2)[1] they are getting the conditional term of the attention maps ([0] is always the unconditional from classifier-free guidance)
     def get_sg_aux(self, cfg=True, transpose=True):
         aux = defaultdict(dict)
         for name, aux_module in self.unet.named_modules():
@@ -90,6 +149,13 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
             plot_centroid=False,
             two_objects=False,
             update_latents=False,
+            img_id=None,
+            smoothing=False,
+            masked_mean=False,
+            grad_norm_scale=False,
+            target_guidance=3000,
+            clip_weight=1.0,
+            use_clip_loss=False,
     ):
         # 0. Default height and width to unet
         height = height or self.default_sample_size * self.vae_scale_factor
@@ -242,6 +308,8 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
             remaining = 25 * num_inference_steps // 32
             self_guidance_alternate_steps = list(range(first_steps, first_steps + remaining + 1, 2))
 
+        scorer = ClipTextScorer()
+
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
 
@@ -285,14 +353,14 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
 
                     if do_self_guidance and (sg_t_start <= i < sg_t_end or i + 1 in self_guidance_alternate_steps):
                         sg_aux = self.get_sg_aux(do_classifier_free_guidance)  # here it's extracting the cond term
-                        sg_loss = 0
+                        spatial_losses = []
 
                         batch_size = latents.shape[0]
 
                         for b in range(batch_size):
                             prompt_b = prompt[b]
                             edits_b = sg_edits[b]
-                            sg_loss_b = 0
+                            spatial_loss_b = 0
 
                             for edit_key, edits in edits_b.items():  # keys: attn, last_attn, last_feats
                                 if isinstance(edit_key, str):
@@ -302,17 +370,11 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
 
                                 for edit in edits:  # dict inside 'attn' & ('last_attn', 'last_feats')
                                     wt = edit.get('weight', 1.)
-                                    # print("wt: ", wt)
                                     alpha = edit.get('alpha', 1.)
-                                    # print("alpha: ", alpha)
                                     centorid_type = edit.get('centorid_type', None)
-                                    # print("centorid_type: ", centorid_type)
                                     function = edit.get('function', None)
-                                    # print("function: ", function)
                                     words = edit['words']
-                                    # print("words: ", words)
                                     relationship = edit.get('spatial', None)
-                                    # print("relationship: ", relationship)
                                     if wt:
                                         tgt = edit.get('tgt')
                                         if tgt is not None:
@@ -333,29 +395,40 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
                                                                 self_guidance_mode=self_guidance_mode, objects=words,
                                                                 prompt=prompt_b,
                                                                 module_name=module_name, relationship=relationship,
-                                                                centroid_type=centorid_type)
-                                            # print("result: ", result)
+                                                                centroid_type=centorid_type,
+                                                                img_id=img_id, smoothing=smoothing,
+                                                                masked_mean=masked_mean)
                                             lst1.extend(result)
 
                                         edit_loss1 = torch.stack(lst1).mean()
                                         if logger is not None:
                                             logger.info(f"{function}: {edit_loss1.item()}")
-                                        sg_loss_b += wt * edit_loss1
+                                        spatial_loss_b += wt * edit_loss1
 
-                                sg_loss += sg_loss_b
+                                # right now there is just one edit dictionary!!!
+                            spatial_losses.append(spatial_loss_b)
 
-                        sg_grad = torch.autograd.grad(sg_loss_rescale * sg_loss, latents)[0] / sg_loss_rescale
+                        if use_clip_loss:
+                            latent_in = latents.detach().requires_grad_(True)
+                            pred_original_sample = predict_x0_from_xt(self.scheduler, noise_pred, t, latent_in)
 
-                        # non_zero_values = sg_grad[sg_grad != 0]
-                        # print("Num non-zero values:", len(non_zero_values), "/", sg_grad.numel(), "mean", sg_grad.mean().item())
+                            obj1, obj2 = clip_objects[0], clip_objects[1]
 
-                        if logger is not None:
-                            logger.info("Gradient mean: %s", sg_grad.mean().item())
+                            clip_loss_obj1 = self.compute_gradient(scorer, obj1, pred_original_sample)
+                            clip_loss_obj2 = self.compute_gradient(scorer, obj2, pred_original_sample)
+                            clip_loss = clip_loss_obj1 + clip_loss_obj2
 
-                        if update_latents:
-                            latents = latents - sg_grad_wt * sg_grad
+                            clip_grad = torch.autograd.grad(clip_loss, latent_in, retain_graph=True)[0]
+                            # print("clip_loss", clip_loss.item())
+
+                        spatial_losses_batch = torch.stack(spatial_losses)
+                        spatial_grad = torch.autograd.grad(spatial_losses_batch, latents,
+                                                           grad_outputs=torch.ones_like(spatial_losses_batch),
+                                                           retain_graph=True)[0]
+                        if use_clip_loss:
+                            noise_pred = noise_pred + sg_grad_wt * spatial_grad + clip_weight * clip_grad
                         else:
-                            noise_pred = noise_pred + sg_grad_wt * sg_grad
+                            noise_pred = noise_pred + sg_grad_wt * spatial_grad
 
                         assert not noise_pred.isnan().any()
                     latents.detach()
@@ -400,67 +473,6 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
             return (image,)
 
         return StableDiffusionXLPipelineOutput(images=image)
-
-
-def set_scale(grad, correction=None, target_guidance=None, guidance_scale=None):
-    grad_norm = (grad * grad).mean().sqrt().item()
-    # print("grad_norm", grad_norm)
-    numerator = (correction * correction).mean().sqrt().item()
-    target_guidance = numerator * guidance_scale / (grad_norm + 1e-1) * target_guidance
-    # print("target_guidance", target_guidance)
-    return target_guidance
-
-
-def predict_x0_from_xt(
-        scheduler: DDPMScheduler,
-        model_output: torch.FloatTensor,
-        timestep: int,
-        sample: torch.FloatTensor,
-) -> Union[DDPMSchedulerOutput, Tuple]:
-    assert isinstance(scheduler, DDPMScheduler)
-    if scheduler.num_inference_steps is None:
-        raise ValueError(
-            "Number of inference steps is 'None', you need to run 'set_timesteps' after creating the scheduler"
-        )
-
-    t = timestep
-
-    prev_t = scheduler.previous_timestep(t)
-
-    if model_output.shape[1] == sample.shape[1] * 2 and scheduler.variance_type in ["learned", "learned_range"]:
-        model_output, predicted_variance = torch.split(model_output, sample.shape[1], dim=1)
-    else:
-        predicted_variance = None
-
-    # 1. compute alphas, betas
-    alpha_prod_t = scheduler.alphas_cumprod[t]
-    alpha_prod_t_prev = scheduler.alphas_cumprod[prev_t] if prev_t >= 0 else scheduler.one
-    beta_prod_t = 1 - alpha_prod_t
-    current_alpha_t = alpha_prod_t / alpha_prod_t_prev
-
-    # 2. compute predicted original sample from predicted noise also called
-    # "predicted x_0" of formula (15) from https://arxiv.org/pdf/2006.11239.pdf
-    if scheduler.config.prediction_type == "epsilon":
-        pred_original_sample = (sample - beta_prod_t ** (0.5) * model_output) / alpha_prod_t ** (0.5)
-    elif scheduler.config.prediction_type == "sample":
-        pred_original_sample = model_output
-    elif scheduler.config.prediction_type == "v_prediction":
-        pred_original_sample = (alpha_prod_t ** 0.5) * sample - (beta_prod_t ** 0.5) * model_output
-    else:
-        raise ValueError(
-            f"prediction_type given as {scheduler.config.prediction_type} must be one of `epsilon`, `sample` or"
-            " `v_prediction`  for the DDPMScheduler."
-        )
-
-    # 3. Clip or threshold "predicted x_0"
-    if scheduler.config.thresholding:
-        pred_original_sample = scheduler._threshold_sample(pred_original_sample)
-    elif scheduler.config.clip_sample:
-        pred_original_sample = pred_original_sample.clamp(
-            -scheduler.config.clip_sample_range, scheduler.config.clip_sample_range
-        )
-
-    return pred_original_sample.to(dtype=sample.dtype)
 
 
 class SpatialLossSDPipeline(StableDiffusionPipeline):
@@ -763,8 +775,8 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                             clip_loss = clip_loss_obj1 + clip_loss_obj2
 
                             clip_grad = torch.autograd.grad(clip_loss, latent_in, retain_graph=True)[0]
-                            print("sg_loss", sg_loss.item())
-                            print("clip_loss", clip_loss.item())
+                            # print("sg_loss", sg_loss.item())
+                            # print("clip_loss", clip_loss.item())
 
                         # breakpoint()
                         spatial_losses_batch = torch.stack(spatial_losses)
