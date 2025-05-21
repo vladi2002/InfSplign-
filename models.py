@@ -106,6 +106,15 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
             except AttributeError:
                 pass
 
+    def compute_gradient(self, scorer, prompt, pred_original_sample):
+        im_pix_un = self.vae.decode(pred_original_sample.to(self.vae.dtype) / self.vae.config.scaling_factor).sample
+        im_pix = ((im_pix_un / 2) + 0.5).clamp(0, 1).to(torch.float).cpu()
+
+        if isinstance(scorer, ClipTextScorer):
+            prompts = [prompt] * len(im_pix)
+            loss = scorer.loss_fn(im_pix, prompts)
+        return loss
+
     @torch.no_grad()
     def __call__(
             self,

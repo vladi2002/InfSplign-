@@ -11,6 +11,8 @@ from models import SpatialLossSDPipeline, SpatialLossSDXLPipeline
 from utils.model_utils import set_attention_processors
 from utils.model_utils import get_model_id
 
+# os.environ["HF_HOME"] = "/tudelft.net/staff-umbrella/StudentsCVlab/vchatalbasheva/Thesis-Splign/hf_cache"
+
 
 def get_config():
     parser = argparse.ArgumentParser()
@@ -401,9 +403,12 @@ def generate_images(config):
         for data in geneval_data:
             prompt = data['prompt']
             all_prompts.append(prompt)
-            all_words[prompt] = [data['objects'][0], data["objects"][1]]
+            # all_words[prompt] = [data['objects'][0], data["objects"][1]]
+            all_words[prompt] = [
+                data['objects'][0].split()[1] if len(data['objects'][0].split()) > 1 else data['objects'][0],
+                data["objects"][1].split()[1] if len(data["objects"][1].split()) > 1 else data["objects"][1]
+            ]
 
-        print("len all_prompts: ", len(all_prompts))
         num_images_per_prompt = 4
         seeds = list(range(42, 42 + num_images_per_prompt))
         print("seeds: ", seeds)
@@ -427,7 +432,7 @@ def generate_images(config):
             "up_blocks.0.attentions.1.transformer_blocks.3.attn2",
         ]
     else:
-        # SD 1.5 and SD 2.1 have the same architecture => same up_blocks
+        # SD 1.4 and SD 2.1 have the same architecture => same up_blocks
         attn_greenlist = [
             "up_blocks.1.attentions.0.transformer_blocks.0.attn2",
             "up_blocks.1.attentions.1.transformer_blocks.0.attn2",
@@ -532,42 +537,39 @@ def generate_images(config):
 
 
 def run_sweep_experiments(config):
-    for model in ["sd1.4", "sd2.1"]: # "sd1.5", "sdxl", "spright"
-        config.model = model
-        for loss in ["relu", "squared_relu", "gelu", "sigmoid"]:
-            config.loss_type = loss
-            # for margin in [0.1, 0.25, 0.5]:
-            margin = 0.25
-            config.margin = margin
-            # for loss_num in [1, 2, 3]:
-            #     config.loss_num = loss_num
+    # for model in ["sd1.4", "sd2.1"]: # "sd1.5", "sdxl", "spright"
+    # config.model = model
+    for loss in ["relu", "gelu", "sigmoid"]:
+        config.loss_type = loss
+        # for margin in [0.1, 0.25, 0.5]:
+        margin = 0.25
+        config.margin = margin
 
-            centroid_type = "mean"
-            config.centroid_type = centroid_type
+        centroid_type = "mean"
+        config.centroid_type = centroid_type
 
-            img_id = f"{loss}_m={margin}_centr_{centroid_type}"
-            config.img_id = img_id
+        clip_weight = config.clip_weight
+        loss = config.loss_type
 
-            generate_images(config)
+        img_id = f"{loss}_m={margin}_centr_{centroid_type}"  # _clip_wt_{clip_weight}"
+        config.img_id = img_id
+
+        generate_images(config)
 
 
 def run_ablation_spatial_loss_intervention(config):
-    sg_t_start_list = [0, 5, 10, 25, 50]
-    sp_loss_range_list = [25, 50] # for how many steps we apply the spatial loss
-    num_inference_steps = [200, 500]
-    for model in ["sd1.4", "sd2.1"]:
-        for sg_t_start in sg_t_start_list:
-            for sp_loss_range in sp_loss_range_list:
-                for num_steps in num_inference_steps:
-                    config.model = model
-                    config.sg_t_start = sg_t_start
-                    config.sg_t_end = sg_t_start + sp_loss_range
-                    config.num_inference_steps = num_steps
+    # sg_t_start_list = [0, 5, 10, 25, 50]
+    # sp_loss_range_list = [25, 50] # for how many steps we apply the spatial loss
+    # num_inference_steps = [200, 500]
+    # for model in ["sd1.4", "sd2.1"]:
+    #     for sg_t_start in sg_t_start_list:
+    #         for sp_loss_range in sp_loss_range_list:
+    #             for num_steps in num_inference_steps:
+    # img_id = f"sg_t_start_{sg_t_start}_sp_loss_range_{sp_loss_range}_num_steps_{num_steps}"
+    img_id = f"sp_loss_end_{config.sg_t_end}_num_steps_{config.num_inference_steps}"
+    config.img_id = img_id
 
-                    img_id = f"sg_t_start_{sg_t_start}_sp_loss_range_{sp_loss_range}_num_steps_{num_steps}"
-                    config.img_id = img_id
-
-                    generate_images(config)
+    generate_images(config)
 
 
 if __name__ == "__main__":
