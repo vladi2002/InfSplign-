@@ -36,6 +36,8 @@ def get_config():
     parser.add_argument("--batch_size", default=1)
     parser.add_argument("--gaussian_smoothing", default=False)
     parser.add_argument("--masked_mean", default=False)
+    parser.add_argument("--masked_mean_thresh", default=None)
+    parser.add_argument("--masked_mean_weight", default=None)
 
     parser.add_argument("--num_inference_steps", default=1)
     parser.add_argument("--sg_t_start", default=1)
@@ -83,7 +85,8 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   plot_centroid=False, save_aux=False, two_objects=False, weight_combinations=None,
                   do_multiprocessing=False, img_id="", update_latents=False, benchmark=None, centroid_type="sg",
                   batch_size=1, model="model_name", run_base=False, smoothing=False, masked_mean=False,
-                  grad_norm_scale=False, target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False, object_presence=False):
+                  grad_norm_scale=False, target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False, object_presence=False,
+                  masked_mean_thresh=None, masked_mean_weight=None):
     # print("num_images_per_prompt", num_images_per_prompt)
 
     if benchmark is not None or do_multiprocessing:
@@ -198,7 +201,8 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                                plot_centroid=plot_centroid, save_aux=save_aux, two_objects=two_objects,
                                update_latents=update_latents, img_id=img_id, smoothing=smoothing,
                                masked_mean=masked_mean, grad_norm_scale=grad_norm_scale, target_guidance=target_guidance,
-                               clip_weight=clip_weight, use_clip_loss=use_clip_loss, object_presence=object_presence).images
+                               clip_weight=clip_weight, use_clip_loss=use_clip_loss, object_presence=object_presence,
+                               masked_mean_thresh=masked_mean_thresh, masked_mean_weight=masked_mean_weight).images
 
                     filtered_paths = [path for path, should_gen in zip(out_filenames, files_to_generate) if
                                       should_gen]
@@ -213,7 +217,8 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                self_guidance_mode=False, two_objects=False, plot_centroid=False, weight_combinations=None,
                do_multiprocessing=False, img_id="", update_latents=False, save_dir_name="", centroid_type="sg",
                benchmark=None, batch_size=1, model="model_name", smoothing=False, masked_mean=False, grad_norm_scale=False,
-               target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False, object_presence=False):
+               target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False, object_presence=False,
+               masked_mean_thresh=None, masked_mean_weight=None):
     torch.cuda.set_device(gpu_id)
     device = torch.device(f"cuda:{gpu_id}")
 
@@ -238,7 +243,8 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                   centroid_type=centroid_type, benchmark=benchmark, batch_size=batch_size, model=model,
                   smoothing=smoothing, masked_mean=masked_mean, grad_norm_scale=grad_norm_scale,
                   target_guidance=target_guidance, clip_weight=clip_weight, use_clip_loss=use_clip_loss,
-                  object_presence=object_presence)
+                  object_presence=object_presence, masked_mean_thresh=masked_mean_thresh,
+                  masked_mean_weight=masked_mean_weight)
 
 
 def start_multiprocessing(attn_greenlist, json_filename, seeds,
@@ -248,7 +254,8 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                           two_objects, plot_centroid, weight_combinations,
                           do_multiprocessing, img_id, update_latents, benchmark,
                           save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean,
-                          grad_norm_scale, target_guidance, clip_weight, use_clip_loss, object_presence):
+                          grad_norm_scale, target_guidance, clip_weight, use_clip_loss, object_presence,
+                          masked_mean_thresh, masked_mean_weight):
     # MULTIPROCESSING
     # SHELL
     num_gpus = torch.cuda.device_count()
@@ -286,7 +293,7 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                                                 centroid_type,
                                                 benchmark, batch_size, model, smoothing, masked_mean,
                                                 grad_norm_scale, target_guidance, clip_weight, use_clip_loss,
-                                                object_presence))
+                                                object_presence, masked_mean_thresh, masked_mean_weight))
         p.start()
         processes.append(p)
 
@@ -318,6 +325,13 @@ def generate_images(config):
     batch_size = int(config.batch_size)
     smoothing = bool(config.gaussian_smoothing)
     masked_mean = bool(config.masked_mean)
+    masked_mean_thresh = float(config.masked_mean_thresh)
+    masked_mean_weight = float(config.masked_mean_weight)
+    
+    print("masked_mean: ", masked_mean)
+    print("masked_mean_weight", masked_mean_weight)
+    print("masked_mean_thresh", masked_mean_thresh)
+    
     grad_norm_scale = bool(config.grad_norm_scale)
     target_guidance = float(config.target_guidance)
     clip_weight = float(config.clip_weight)
@@ -344,7 +358,6 @@ def generate_images(config):
     # print("centroid_type: ", centroid_type)
     # print("batch_size: ", batch_size)
     # print("smoothing: ", smoothing)
-    # print("masked_mean: ", masked_mean)
 
     if benchmark == "t2i":
         with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
@@ -511,7 +524,8 @@ def generate_images(config):
             two_objects, plot_centroid, weight_combinations,
             do_multiprocessing, img_id, update_latents, benchmark,
             save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean,
-            grad_norm_scale, target_guidance, clip_weight, use_clip_loss, object_presence)
+            grad_norm_scale, target_guidance, clip_weight, use_clip_loss, object_presence,
+            masked_mean_thresh, masked_mean_weight)
 
     else:
         print(device)
@@ -536,7 +550,8 @@ def generate_images(config):
                       update_latents=update_latents, benchmark=benchmark, centroid_type=centroid_type,
                       batch_size=batch_size, model=model, run_base=run_base, smoothing=smoothing, masked_mean=masked_mean,
                       grad_norm_scale=grad_norm_scale, target_guidance=target_guidance, clip_weight=clip_weight,
-                      use_clip_loss=use_clip_loss, object_presence=object_presence)
+                      use_clip_loss=use_clip_loss, object_presence=object_presence, masked_mean_thresh=masked_mean_thresh,
+                      masked_mean_weight=masked_mean_weight)
 
 
 def run_sweep_experiments(config):

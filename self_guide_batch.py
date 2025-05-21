@@ -148,7 +148,8 @@ class Splign:
                  relative=False, idxs=None, L2=False, module_name=None,
                  cluster_objects=False, prompt=None, relationship="other",
                  alpha=1, margin=0.5, logger=None, self_guidance_mode=False, plot_centroid=False,
-                 two_objects=False, centroid_type="sg", img_id=None, smoothing=False, masked_mean=False, object_presence=False):
+                 two_objects=False, centroid_type="sg", img_id=None, smoothing=False, masked_mean=False, object_presence=False,
+                 masked_mean_thresh=0.1, masked_mean_weight=0.5):
         # print("attn len: ", len(attn))
         timestep = i
         attn = attn[i]
@@ -223,30 +224,26 @@ class Splign:
                 spatial_loss = Splign.spatial_loss(centroids, relationship, loss_type,
                                                    loss_num, alpha=alpha, margin=margin,
                                                    logger=logger, object_presence=object_presence)
-                # # MEAN
-                # thresh = 0.1
-                # for i, att_map in enumerate(attn_map_list):
-                #     if att_map.mean().item() < thresh:
-                #         print(objects[i], att_map.mean().item())
-                #         spatial_loss = spatial_loss + 0.5 * F.relu(thresh - att_map.mean())
-                #
-                # # MASKED MEAN
-                # if masked_mean:
-                #     thresh = 0.1
-                #     for i, att_map in enumerate(attn_map_list):
-                #         threshold = att_map.mean()
-                #         mask = att_map >= threshold
-                #         masked_attn_map = att_map * mask
-                #
-                #         # mean of the masked region only
-                #         # TODO: sum the two attn maps and use the thresh on that
-                #         mask_sum = mask.sum().float()
-                #         if mask_sum > 0:
-                #             masked_mean = (masked_attn_map.sum() / mask_sum)
-                #
-                #             if masked_mean < thresh:
-                #                 # print(objects[i], f"masked mean: {masked_mean.item()}")
-                #                 spatial_loss = spatial_loss + 0.5 * F.relu(thresh - masked_mean)
+                
+                # MASKED MEAN
+                if masked_mean:
+                    combined_attn_map = torch.zeros_like(attn_map_list[0])
+                    for att_map in attn_map_list:
+                        combined_attn_map = combined_attn_map + att_map
+                    
+                    threshold = combined_attn_map.mean()
+                    mask = combined_attn_map >= threshold
+                    masked_attn_map = combined_attn_map * mask
+            
+                    # mean of the masked region only
+                    # TODO: sum the two attn maps and use the thresh on that
+                    mask_sum = mask.sum().float()
+                    if mask_sum > 0:
+                        masked_mean = (masked_attn_map.sum() / mask_sum)
+            
+                        if masked_mean < masked_mean_thresh:
+                            # print(objects[i], f"masked mean: {masked_mean.item()}")
+                            spatial_loss = spatial_loss + masked_mean_weight * F.relu(masked_mean_thresh - masked_mean)
 
                 # # PREVENT OBJECT OVERLAP
                 # loss_contrast = 1 - torch.nn.functional.cosine_similarity(attn_map_list[0].flatten().unsqueeze(dim=0), attn_map_list[1].flatten().unsqueeze(dim=0))
