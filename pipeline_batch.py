@@ -11,8 +11,6 @@ from models import SpatialLossSDPipeline, SpatialLossSDXLPipeline
 from utils.model_utils import set_attention_processors
 from utils.model_utils import get_model_id
 
-# os.environ["HF_HOME"] = "/tudelft.net/staff-umbrella/StudentsCVlab/vchatalbasheva/Thesis-Splign/hf_cache"
-
 
 def get_config():
     parser = argparse.ArgumentParser()
@@ -47,6 +45,8 @@ def get_config():
     parser.add_argument("--target_guidance", default=3000)
     parser.add_argument("--clip_weight", default=1.0)
     parser.add_argument("--use_clip_loss", default=False)
+    parser.add_argument("--num_attn_layers", default=9)
+    parser.add_argument("--object_presence", default=False)
 
     # t2i-comp-bench
     parser.add_argument("--port", default=2)
@@ -83,7 +83,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   plot_centroid=False, save_aux=False, two_objects=False, weight_combinations=None,
                   do_multiprocessing=False, img_id="", update_latents=False, benchmark=None, centroid_type="sg",
                   batch_size=1, model="model_name", run_base=False, smoothing=False, masked_mean=False,
-                  grad_norm_scale=False, target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False):
+                  grad_norm_scale=False, target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False, object_presence=False):
     # print("num_images_per_prompt", num_images_per_prompt)
 
     if benchmark is not None or do_multiprocessing:
@@ -198,7 +198,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                                plot_centroid=plot_centroid, save_aux=save_aux, two_objects=two_objects,
                                update_latents=update_latents, img_id=img_id, smoothing=smoothing,
                                masked_mean=masked_mean, grad_norm_scale=grad_norm_scale, target_guidance=target_guidance,
-                               clip_weight=clip_weight, use_clip_loss=use_clip_loss).images
+                               clip_weight=clip_weight, use_clip_loss=use_clip_loss, object_presence=object_presence).images
 
                     filtered_paths = [path for path, should_gen in zip(out_filenames, files_to_generate) if
                                       should_gen]
@@ -213,7 +213,7 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                self_guidance_mode=False, two_objects=False, plot_centroid=False, weight_combinations=None,
                do_multiprocessing=False, img_id="", update_latents=False, save_dir_name="", centroid_type="sg",
                benchmark=None, batch_size=1, model="model_name", smoothing=False, masked_mean=False, grad_norm_scale=False,
-               target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False):
+               target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False, object_presence=False):
     torch.cuda.set_device(gpu_id)
     device = torch.device(f"cuda:{gpu_id}")
 
@@ -237,7 +237,8 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                   update_latents=update_latents, save_dir_name=save_dir_name,
                   centroid_type=centroid_type, benchmark=benchmark, batch_size=batch_size, model=model,
                   smoothing=smoothing, masked_mean=masked_mean, grad_norm_scale=grad_norm_scale,
-                  target_guidance=target_guidance, clip_weight=clip_weight, use_clip_loss=use_clip_loss)
+                  target_guidance=target_guidance, clip_weight=clip_weight, use_clip_loss=use_clip_loss,
+                  object_presence=object_presence)
 
 
 def start_multiprocessing(attn_greenlist, json_filename, seeds,
@@ -247,7 +248,7 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                           two_objects, plot_centroid, weight_combinations,
                           do_multiprocessing, img_id, update_latents, benchmark,
                           save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean,
-                          grad_norm_scale, target_guidance, clip_weight, use_clip_loss):
+                          grad_norm_scale, target_guidance, clip_weight, use_clip_loss, object_presence):
     # MULTIPROCESSING
     # SHELL
     num_gpus = torch.cuda.device_count()
@@ -284,7 +285,8 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                                                 do_multiprocessing, img_id, update_latents, save_dir_name,
                                                 centroid_type,
                                                 benchmark, batch_size, model, smoothing, masked_mean,
-                                                grad_norm_scale, target_guidance, clip_weight, use_clip_loss))
+                                                grad_norm_scale, target_guidance, clip_weight, use_clip_loss,
+                                                object_presence))
         p.start()
         processes.append(p)
 
@@ -320,9 +322,11 @@ def generate_images(config):
     target_guidance = float(config.target_guidance)
     clip_weight = float(config.clip_weight)
     use_clip_loss = bool(config.use_clip_loss)
+    object_presence = bool(config.object_presence)
+    print("object_presence", object_presence)
 
-    print("grad_norm_scale", grad_norm_scale)
-    print("target_guidance", target_guidance)
+    # print("grad_norm_scale", grad_norm_scale)
+    # print("target_guidance", target_guidance)
 
     # print("L2_norm: ", L2_norm)
     # print("self_guidance_mode: ", self_guidance_mode)
@@ -441,6 +445,8 @@ def generate_images(config):
             "up_blocks.3.attentions.1.transformer_blocks.0.attn2",
             "up_blocks.3.attentions.2.transformer_blocks.0.attn2"
         ]
+        # num_attn_layers = int(config.num_attn_layers)
+        # attn_greenlist = attn_greenlist[:num_attn_layers]
 
         # cross_attn_layers_sd1.4 = [
         #     # "down_blocks.0.attentions.0.transformer_blocks.0.attn2",
@@ -505,7 +511,7 @@ def generate_images(config):
             two_objects, plot_centroid, weight_combinations,
             do_multiprocessing, img_id, update_latents, benchmark,
             save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean,
-            grad_norm_scale, target_guidance, clip_weight, use_clip_loss)
+            grad_norm_scale, target_guidance, clip_weight, use_clip_loss, object_presence)
 
     else:
         print(device)
@@ -530,7 +536,7 @@ def generate_images(config):
                       update_latents=update_latents, benchmark=benchmark, centroid_type=centroid_type,
                       batch_size=batch_size, model=model, run_base=run_base, smoothing=smoothing, masked_mean=masked_mean,
                       grad_norm_scale=grad_norm_scale, target_guidance=target_guidance, clip_weight=clip_weight,
-                      use_clip_loss=use_clip_loss)
+                      use_clip_loss=use_clip_loss, object_presence=object_presence)
 
 
 def run_sweep_experiments(config):
@@ -567,6 +573,24 @@ def run_ablation_spatial_loss_intervention(config):
     config.img_id = img_id
 
     generate_images(config)
+    
+    
+def run_ablation_loss_num(config):
+    for loss_num in [1, 2, 3]:
+        config.loss_num = loss_num
+        loss = config.loss_type
+        img_id = f"loss_{loss}_loss_num_{loss_num}_ablation_132"
+        config.img_id = img_id
+        generate_images(config)
+    
+    
+def run_ablation_object_presence(config):
+    for loss in ["relu", "gelu", "sigmoid"]:
+        config.loss_type = loss
+        object_presence = config.object_presence
+        img_id = f"loss_{loss}_object_presence_{object_presence}_ablation_132"
+        config.img_id = img_id
+        generate_images(config)
 
 
 if __name__ == "__main__":

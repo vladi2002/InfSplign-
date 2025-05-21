@@ -165,6 +165,7 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
             target_guidance=3000,
             clip_weight=1.0,
             use_clip_loss=False,
+            object_presence=False
     ):
         # 0. Default height and width to unet
         height = height or self.default_sample_size * self.vae_scale_factor
@@ -406,7 +407,7 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
                                                                 module_name=module_name, relationship=relationship,
                                                                 centroid_type=centorid_type,
                                                                 img_id=img_id, smoothing=smoothing,
-                                                                masked_mean=masked_mean)
+                                                                masked_mean=masked_mean, object_presence=object_presence)
                                             lst1.extend(result)
 
                                         edit_loss1 = torch.stack(lst1).mean()
@@ -570,6 +571,7 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
             target_guidance=3000,
             clip_weight=1.0,
             use_clip_loss=False,
+            object_presence=False
     ):
         # 0. Default height and width to unet
         global clip_objects
@@ -760,7 +762,7 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                                                                 module_name=module_name, relationship=relationship,
                                                                 centroid_type=centorid_type,
                                                                 img_id=img_id, smoothing=smoothing,
-                                                                masked_mean=masked_mean)
+                                                                masked_mean=masked_mean, object_presence=object_presence)
                                             lst1.extend(result)
 
                                         edit_loss1 = torch.stack(lst1).mean()
