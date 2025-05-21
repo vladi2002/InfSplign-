@@ -1,0 +1,1586 @@
+[
+    {
+        "unique_id": 17965,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "fork"
+        ],
+        "obj_2_attributes": [
+            "tie"
+        ],
+        "rel_type": "above",
+        "text": "a fork above a tie"
+    },
+    {
+        "unique_id": 6920,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "tie"
+        ],
+        "rel_type": "to the left of",
+        "text": "a traffic light to the left of a tie"
+    },
+    {
+        "unique_id": 18252,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "tie"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "to the right of",
+        "text": "a tie to the right of a sink"
+    },
+    {
+        "unique_id": 18106,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "tie"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "below",
+        "text": "a tie below a chair"
+    },
+    {
+        "unique_id": 260,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "tie"
+        ],
+        "rel_type": "to the left of",
+        "text": "a person to the left of a tie"
+    },
+    {
+        "unique_id": 17885,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "baseball bat"
+        ],
+        "obj_2_attributes": [
+            "tie"
+        ],
+        "rel_type": "above",
+        "text": "a baseball bat above a tie"
+    },
+    {
+        "unique_id": 18202,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "tie"
+        ],
+        "obj_2_attributes": [
+            "keyboard"
+        ],
+        "rel_type": "to the right of",
+        "text": "a tie to the right of a keyboard"
+    },
+    {
+        "unique_id": 15116,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "tie"
+        ],
+        "rel_type": "below",
+        "text": "a zebra below a tie"
+    },
+    {
+        "unique_id": 18030,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "tie"
+        ],
+        "obj_2_attributes": [
+            "orange"
+        ],
+        "rel_type": "to the left of",
+        "text": "a tie to the left of an orange"
+    },
+    {
+        "unique_id": 18322,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "tie"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "to the right of",
+        "text": "a tie to the right of a hair drier"
+    },
+    {
+        "unique_id": 6222,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "tie"
+        ],
+        "rel_type": "to the right of",
+        "text": "a boat to the right of a tie"
+    },
+    {
+        "unique_id": 17964,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "tie"
+        ],
+        "obj_2_attributes": [
+            "fork"
+        ],
+        "rel_type": "above",
+        "text": "a tie above a fork"
+    },
+    {
+        "unique_id": 7073,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "fork"
+        ],
+        "obj_2_attributes": [
+            "traffic light"
+        ],
+        "rel_type": "to the right of",
+        "text": "a fork to the right of a traffic light"
+    },
+    {
+        "unique_id": 24856,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "fork"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "below",
+        "text": "a fork below a sink"
+    },
+    {
+        "unique_id": 24700,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "fork"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "to the left of",
+        "text": "a fork to the left of a chair"
+    },
+    {
+        "unique_id": 414,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "fork"
+        ],
+        "rel_type": "above",
+        "text": "a person above a fork"
+    },
+    {
+        "unique_id": 21322,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "baseball bat"
+        ],
+        "obj_2_attributes": [
+            "fork"
+        ],
+        "rel_type": "to the right of",
+        "text": "a baseball bat to the right of a fork"
+    },
+    {
+        "unique_id": 24806,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "fork"
+        ],
+        "obj_2_attributes": [
+            "keyboard"
+        ],
+        "rel_type": "below",
+        "text": "a fork below a keyboard"
+    },
+    {
+        "unique_id": 15260,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "fork"
+        ],
+        "rel_type": "to the left of",
+        "text": "a zebra to the left of a fork"
+    },
+    {
+        "unique_id": 24634,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "fork"
+        ],
+        "obj_2_attributes": [
+            "orange"
+        ],
+        "rel_type": "above",
+        "text": "a fork above an orange"
+    },
+    {
+        "unique_id": 24926,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "fork"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "below",
+        "text": "a fork below a hair drier"
+    },
+    {
+        "unique_id": 6375,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "fork"
+        ],
+        "obj_2_attributes": [
+            "boat"
+        ],
+        "rel_type": "above",
+        "text": "a fork above a boat"
+    },
+    {
+        "unique_id": 6921,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "tie"
+        ],
+        "obj_2_attributes": [
+            "traffic light"
+        ],
+        "rel_type": "to the left of",
+        "text": "a tie to the left of a traffic light"
+    },
+    {
+        "unique_id": 7076,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "fork"
+        ],
+        "rel_type": "below",
+        "text": "a traffic light below a fork"
+    },
+    {
+        "unique_id": 7360,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "to the left of",
+        "text": "a traffic light to the left of a sink"
+    },
+    {
+        "unique_id": 7216,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "below",
+        "text": "a traffic light below a chair"
+    },
+    {
+        "unique_id": 82,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "traffic light"
+        ],
+        "rel_type": "to the right of",
+        "text": "a person to the right of a traffic light"
+    },
+    {
+        "unique_id": 6991,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "baseball bat"
+        ],
+        "obj_2_attributes": [
+            "traffic light"
+        ],
+        "rel_type": "to the left of",
+        "text": "a baseball bat to the left of a traffic light"
+    },
+    {
+        "unique_id": 7314,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "keyboard"
+        ],
+        "rel_type": "above",
+        "text": "a traffic light above a keyboard"
+    },
+    {
+        "unique_id": 6870,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "zebra"
+        ],
+        "rel_type": "to the left of",
+        "text": "a traffic light to the left of a zebra"
+    },
+    {
+        "unique_id": 7142,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "orange"
+        ],
+        "rel_type": "to the right of",
+        "text": "a traffic light to the right of an orange"
+    },
+    {
+        "unique_id": 7430,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "to the left of",
+        "text": "a traffic light to the left of a hair drier"
+    },
+    {
+        "unique_id": 6043,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "boat"
+        ],
+        "rel_type": "to the right of",
+        "text": "a traffic light to the right of a boat"
+    },
+    {
+        "unique_id": 18254,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "tie"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "above",
+        "text": "a tie above a sink"
+    },
+    {
+        "unique_id": 24857,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "sink"
+        ],
+        "obj_2_attributes": [
+            "fork"
+        ],
+        "rel_type": "below",
+        "text": "a sink below a fork"
+    },
+    {
+        "unique_id": 7364,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "above",
+        "text": "a traffic light above a sink"
+    },
+    {
+        "unique_id": 28985,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "sink"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "above",
+        "text": "a sink above a chair"
+    },
+    {
+        "unique_id": 707,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "sink"
+        ],
+        "obj_2_attributes": [
+            "person"
+        ],
+        "rel_type": "below",
+        "text": "a sink below a person"
+    },
+    {
+        "unique_id": 21612,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "baseball bat"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "to the right of",
+        "text": "a baseball bat to the right of a sink"
+    },
+    {
+        "unique_id": 30736,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "keyboard"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "below",
+        "text": "a keyboard below a sink"
+    },
+    {
+        "unique_id": 15550,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "to the left of",
+        "text": "a zebra to the left of a sink"
+    },
+    {
+        "unique_id": 27162,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "orange"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "to the right of",
+        "text": "an orange to the right of a sink"
+    },
+    {
+        "unique_id": 31307,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "hair drier"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "below",
+        "text": "a hair drier below a sink"
+    },
+    {
+        "unique_id": 6660,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "to the left of",
+        "text": "a boat to the left of a sink"
+    },
+    {
+        "unique_id": 18104,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "tie"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "above",
+        "text": "a tie above a chair"
+    },
+    {
+        "unique_id": 24702,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "fork"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "to the right of",
+        "text": "a fork to the right of a chair"
+    },
+    {
+        "unique_id": 7214,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "above",
+        "text": "a traffic light above a chair"
+    },
+    {
+        "unique_id": 28981,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "sink"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "to the left of",
+        "text": "a sink to the left of a chair"
+    },
+    {
+        "unique_id": 555,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "chair"
+        ],
+        "obj_2_attributes": [
+            "person"
+        ],
+        "rel_type": "above",
+        "text": "a chair above a person"
+    },
+    {
+        "unique_id": 21467,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "chair"
+        ],
+        "obj_2_attributes": [
+            "baseball bat"
+        ],
+        "rel_type": "below",
+        "text": "a chair below a baseball bat"
+    },
+    {
+        "unique_id": 28932,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "chair"
+        ],
+        "obj_2_attributes": [
+            "keyboard"
+        ],
+        "rel_type": "to the right of",
+        "text": "a chair to the right of a keyboard"
+    },
+    {
+        "unique_id": 15402,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "to the right of",
+        "text": "a zebra to the right of a chair"
+    },
+    {
+        "unique_id": 27014,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "orange"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "above",
+        "text": "an orange above a chair"
+    },
+    {
+        "unique_id": 29050,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "chair"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "to the left of",
+        "text": "a chair to the left of a hair drier"
+    },
+    {
+        "unique_id": 6516,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "below",
+        "text": "a boat below a chair"
+    },
+    {
+        "unique_id": 266,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "tie"
+        ],
+        "rel_type": "below",
+        "text": "a person below a tie"
+    },
+    {
+        "unique_id": 410,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "fork"
+        ],
+        "rel_type": "to the left of",
+        "text": "a person to the left of a fork"
+    },
+    {
+        "unique_id": 83,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "person"
+        ],
+        "rel_type": "to the right of",
+        "text": "a traffic light to the right of a person"
+    },
+    {
+        "unique_id": 704,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "above",
+        "text": "a person above a sink"
+    },
+    {
+        "unique_id": 550,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "to the left of",
+        "text": "a person to the left of a chair"
+    },
+    {
+        "unique_id": 336,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "baseball bat"
+        ],
+        "rel_type": "below",
+        "text": "a person below a baseball bat"
+    },
+    {
+        "unique_id": 652,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "keyboard"
+        ],
+        "rel_type": "to the right of",
+        "text": "a person to the right of a keyboard"
+    },
+    {
+        "unique_id": 215,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "person"
+        ],
+        "rel_type": "above",
+        "text": "a zebra above a person"
+    },
+    {
+        "unique_id": 486,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "orange"
+        ],
+        "rel_type": "below",
+        "text": "a person below an orange"
+    },
+    {
+        "unique_id": 776,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "below",
+        "text": "a person below a hair drier"
+    },
+    {
+        "unique_id": 75,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "person"
+        ],
+        "rel_type": "above",
+        "text": "a boat above a person"
+    },
+    {
+        "unique_id": 17880,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "tie"
+        ],
+        "obj_2_attributes": [
+            "baseball bat"
+        ],
+        "rel_type": "to the left of",
+        "text": "a tie to the left of a baseball bat"
+    },
+    {
+        "unique_id": 21323,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "fork"
+        ],
+        "obj_2_attributes": [
+            "baseball bat"
+        ],
+        "rel_type": "to the right of",
+        "text": "a fork to the right of a baseball bat"
+    },
+    {
+        "unique_id": 6992,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "baseball bat"
+        ],
+        "rel_type": "to the right of",
+        "text": "a traffic light to the right of a baseball bat"
+    },
+    {
+        "unique_id": 21610,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "baseball bat"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "to the left of",
+        "text": "a baseball bat to the left of a sink"
+    },
+    {
+        "unique_id": 21464,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "baseball bat"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "above",
+        "text": "a baseball bat above a chair"
+    },
+    {
+        "unique_id": 337,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "baseball bat"
+        ],
+        "obj_2_attributes": [
+            "person"
+        ],
+        "rel_type": "below",
+        "text": "a baseball bat below a person"
+    },
+    {
+        "unique_id": 21561,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "keyboard"
+        ],
+        "obj_2_attributes": [
+            "baseball bat"
+        ],
+        "rel_type": "to the left of",
+        "text": "a keyboard to the left of a baseball bat"
+    },
+    {
+        "unique_id": 15187,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "baseball bat"
+        ],
+        "obj_2_attributes": [
+            "zebra"
+        ],
+        "rel_type": "below",
+        "text": "a baseball bat below a zebra"
+    },
+    {
+        "unique_id": 21392,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "baseball bat"
+        ],
+        "obj_2_attributes": [
+            "orange"
+        ],
+        "rel_type": "to the right of",
+        "text": "a baseball bat to the right of an orange"
+    },
+    {
+        "unique_id": 21685,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "hair drier"
+        ],
+        "obj_2_attributes": [
+            "baseball bat"
+        ],
+        "rel_type": "above",
+        "text": "a hair drier above a baseball bat"
+    },
+    {
+        "unique_id": 6293,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "baseball bat"
+        ],
+        "obj_2_attributes": [
+            "boat"
+        ],
+        "rel_type": "to the right of",
+        "text": "a baseball bat to the right of a boat"
+    },
+    {
+        "unique_id": 18200,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "tie"
+        ],
+        "obj_2_attributes": [
+            "keyboard"
+        ],
+        "rel_type": "to the left of",
+        "text": "a tie to the left of a keyboard"
+    },
+    {
+        "unique_id": 24804,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "fork"
+        ],
+        "obj_2_attributes": [
+            "keyboard"
+        ],
+        "rel_type": "above",
+        "text": "a fork above a keyboard"
+    },
+    {
+        "unique_id": 7316,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "keyboard"
+        ],
+        "rel_type": "below",
+        "text": "a traffic light below a keyboard"
+    },
+    {
+        "unique_id": 30730,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "keyboard"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "to the left of",
+        "text": "a keyboard to the left of a sink"
+    },
+    {
+        "unique_id": 28933,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "keyboard"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "to the right of",
+        "text": "a keyboard to the right of a chair"
+    },
+    {
+        "unique_id": 654,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "keyboard"
+        ],
+        "rel_type": "above",
+        "text": "a person above a keyboard"
+    },
+    {
+        "unique_id": 21566,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "baseball bat"
+        ],
+        "obj_2_attributes": [
+            "keyboard"
+        ],
+        "rel_type": "below",
+        "text": "a baseball bat below a keyboard"
+    },
+    {
+        "unique_id": 15502,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "keyboard"
+        ],
+        "rel_type": "to the right of",
+        "text": "a zebra to the right of a keyboard"
+    },
+    {
+        "unique_id": 27114,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "orange"
+        ],
+        "obj_2_attributes": [
+            "keyboard"
+        ],
+        "rel_type": "above",
+        "text": "an orange above a keyboard"
+    },
+    {
+        "unique_id": 30800,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "keyboard"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "to the left of",
+        "text": "a keyboard to the left of a hair drier"
+    },
+    {
+        "unique_id": 6617,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "keyboard"
+        ],
+        "obj_2_attributes": [
+            "boat"
+        ],
+        "rel_type": "below",
+        "text": "a keyboard below a boat"
+    },
+    {
+        "unique_id": 15110,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "tie"
+        ],
+        "rel_type": "to the left of",
+        "text": "a zebra to the left of a tie"
+    },
+    {
+        "unique_id": 15262,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "fork"
+        ],
+        "rel_type": "to the right of",
+        "text": "a zebra to the right of a fork"
+    },
+    {
+        "unique_id": 6874,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "traffic light"
+        ],
+        "obj_2_attributes": [
+            "zebra"
+        ],
+        "rel_type": "above",
+        "text": "a traffic light above a zebra"
+    },
+    {
+        "unique_id": 15556,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "below",
+        "text": "a zebra below a sink"
+    },
+    {
+        "unique_id": 15404,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "above",
+        "text": "a zebra above a chair"
+    },
+    {
+        "unique_id": 210,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "zebra"
+        ],
+        "rel_type": "to the left of",
+        "text": "a person to the left of a zebra"
+    },
+    {
+        "unique_id": 15182,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "baseball bat"
+        ],
+        "rel_type": "to the right of",
+        "text": "a zebra to the right of a baseball bat"
+    },
+    {
+        "unique_id": 15506,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "keyboard"
+        ],
+        "rel_type": "below",
+        "text": "a zebra below a keyboard"
+    },
+    {
+        "unique_id": 15333,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "orange"
+        ],
+        "obj_2_attributes": [
+            "zebra"
+        ],
+        "rel_type": "to the right of",
+        "text": "an orange to the right of a zebra"
+    },
+    {
+        "unique_id": 15626,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "below",
+        "text": "a zebra below a hair drier"
+    },
+    {
+        "unique_id": 6170,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "zebra"
+        ],
+        "rel_type": "to the left of",
+        "text": "a boat to the left of a zebra"
+    },
+    {
+        "unique_id": 18034,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "tie"
+        ],
+        "obj_2_attributes": [
+            "orange"
+        ],
+        "rel_type": "above",
+        "text": "a tie above an orange"
+    },
+    {
+        "unique_id": 24630,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "fork"
+        ],
+        "obj_2_attributes": [
+            "orange"
+        ],
+        "rel_type": "to the left of",
+        "text": "a fork to the left of an orange"
+    },
+    {
+        "unique_id": 7143,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "orange"
+        ],
+        "obj_2_attributes": [
+            "traffic light"
+        ],
+        "rel_type": "to the right of",
+        "text": "an orange to the right of a traffic light"
+    },
+    {
+        "unique_id": 27164,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "orange"
+        ],
+        "obj_2_attributes": [
+            "sink"
+        ],
+        "rel_type": "above",
+        "text": "an orange above a sink"
+    },
+    {
+        "unique_id": 27016,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "orange"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "below",
+        "text": "an orange below a chair"
+    },
+    {
+        "unique_id": 480,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "orange"
+        ],
+        "rel_type": "to the left of",
+        "text": "a person to the left of an orange"
+    },
+    {
+        "unique_id": 21393,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "orange"
+        ],
+        "obj_2_attributes": [
+            "baseball bat"
+        ],
+        "rel_type": "to the right of",
+        "text": "an orange to the right of a baseball bat"
+    },
+    {
+        "unique_id": 27115,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "keyboard"
+        ],
+        "obj_2_attributes": [
+            "orange"
+        ],
+        "rel_type": "above",
+        "text": "a keyboard above an orange"
+    },
+    {
+        "unique_id": 15336,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "orange"
+        ],
+        "rel_type": "below",
+        "text": "a zebra below an orange"
+    },
+    {
+        "unique_id": 27230,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "orange"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "to the left of",
+        "text": "an orange to the left of a hair drier"
+    },
+    {
+        "unique_id": 6442,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "orange"
+        ],
+        "rel_type": "to the right of",
+        "text": "a boat to the right of an orange"
+    },
+    {
+        "unique_id": 18324,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "tie"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "above",
+        "text": "a tie above a hair drier"
+    },
+    {
+        "unique_id": 24927,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "hair drier"
+        ],
+        "obj_2_attributes": [
+            "fork"
+        ],
+        "rel_type": "below",
+        "text": "a hair drier below a fork"
+    },
+    {
+        "unique_id": 7431,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "hair drier"
+        ],
+        "obj_2_attributes": [
+            "traffic light"
+        ],
+        "rel_type": "to the left of",
+        "text": "a hair drier to the left of a traffic light"
+    },
+    {
+        "unique_id": 31302,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "sink"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "to the right of",
+        "text": "a sink to the right of a hair drier"
+    },
+    {
+        "unique_id": 29054,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "chair"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "above",
+        "text": "a chair above a hair drier"
+    },
+    {
+        "unique_id": 777,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "hair drier"
+        ],
+        "obj_2_attributes": [
+            "person"
+        ],
+        "rel_type": "below",
+        "text": "a hair drier below a person"
+    },
+    {
+        "unique_id": 21680,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "baseball bat"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "to the left of",
+        "text": "a baseball bat to the left of a hair drier"
+    },
+    {
+        "unique_id": 30802,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "keyboard"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "to the right of",
+        "text": "a keyboard to the right of a hair drier"
+    },
+    {
+        "unique_id": 15624,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "zebra"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "above",
+        "text": "a zebra above a hair drier"
+    },
+    {
+        "unique_id": 27237,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "hair drier"
+        ],
+        "obj_2_attributes": [
+            "orange"
+        ],
+        "rel_type": "below",
+        "text": "a hair drier below an orange"
+    },
+    {
+        "unique_id": 6730,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "to the left of",
+        "text": "a boat to the left of a hair drier"
+    },
+    {
+        "unique_id": 6223,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "tie"
+        ],
+        "obj_2_attributes": [
+            "boat"
+        ],
+        "rel_type": "to the right of",
+        "text": "a tie to the right of a boat"
+    },
+    {
+        "unique_id": 6374,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "fork"
+        ],
+        "rel_type": "above",
+        "text": "a boat above a fork"
+    },
+    {
+        "unique_id": 6046,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "traffic light"
+        ],
+        "rel_type": "below",
+        "text": "a boat below a traffic light"
+    },
+    {
+        "unique_id": 6661,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "sink"
+        ],
+        "obj_2_attributes": [
+            "boat"
+        ],
+        "rel_type": "to the left of",
+        "text": "a sink to the left of a boat"
+    },
+    {
+        "unique_id": 6512,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "chair"
+        ],
+        "rel_type": "to the right of",
+        "text": "a boat to the right of a chair"
+    },
+    {
+        "unique_id": 74,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "person"
+        ],
+        "obj_2_attributes": [
+            "boat"
+        ],
+        "rel_type": "above",
+        "text": "a person above a boat"
+    },
+    {
+        "unique_id": 6296,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "baseball bat"
+        ],
+        "rel_type": "below",
+        "text": "a boat below a baseball bat"
+    },
+    {
+        "unique_id": 6610,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "keyboard"
+        ],
+        "rel_type": "to the left of",
+        "text": "a boat to the left of a keyboard"
+    },
+    {
+        "unique_id": 6172,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "zebra"
+        ],
+        "rel_type": "to the right of",
+        "text": "a boat to the right of a zebra"
+    },
+    {
+        "unique_id": 6444,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "orange"
+        ],
+        "rel_type": "above",
+        "text": "a boat above an orange"
+    },
+    {
+        "unique_id": 6736,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "boat"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "below",
+        "text": "a boat below a hair drier"
+    }
+]

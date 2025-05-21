@@ -1,0 +1,14 @@
+{
+  "accessory": ["backpack", "umbrella", "handbag", "tie", "suitcase"],
+  "kitchen": ["bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl"],
+  "outdoor": ["traffic light", "fire hydrant", "stop sign", "parking meter", "bench"],
+  "appliance": ["microwave", "oven", "toaster", "sink", "refrigerator"],
+  "furniture": ["chair", "couch", "potted plant", "bed", "dining table", "toilet"],
+  "person": ["person"],
+  "sports": ["frisbee", "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket"],
+  "electronic": ["tv", "laptop", "mouse", "remote", "keyboard", "cell phone"],
+  "animal": ["bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe"],
+  "food": ["banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake"],
+  "indoor": ["book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"],
+  "vehicle": ["bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat"]
+}
