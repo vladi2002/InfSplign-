@@ -437,12 +437,12 @@ def generate_images(config):
             "up_blocks.1.attentions.0.transformer_blocks.0.attn2",
             "up_blocks.1.attentions.1.transformer_blocks.0.attn2",
             "up_blocks.1.attentions.2.transformer_blocks.0.attn2",
-            # "up_blocks.2.attentions.0.transformer_blocks.0.attn2",
-            # "up_blocks.2.attentions.1.transformer_blocks.0.attn2",
-            # "up_blocks.2.attentions.2.transformer_blocks.0.attn2",
-            # "up_blocks.3.attentions.0.transformer_blocks.0.attn2",
-            # "up_blocks.3.attentions.1.transformer_blocks.0.attn2",
-            # "up_blocks.3.attentions.2.transformer_blocks.0.attn2"
+            "up_blocks.2.attentions.0.transformer_blocks.0.attn2",
+            "up_blocks.2.attentions.1.transformer_blocks.0.attn2",
+            "up_blocks.2.attentions.2.transformer_blocks.0.attn2",
+            "up_blocks.3.attentions.0.transformer_blocks.0.attn2",
+            "up_blocks.3.attentions.1.transformer_blocks.0.attn2",
+            "up_blocks.3.attentions.2.transformer_blocks.0.attn2"
         ]
 
         # cross_attn_layers_sd1.4 = [
@@ -479,8 +479,8 @@ def generate_images(config):
         sg_t_end = 3 * num_inference_steps // 16
 
     if model == "sdxl":
-        num_inference_steps = 50
-        sg_t_end = 12
+        num_inference_steps = int(config.num_inference_steps) # 50
+        sg_t_end = int(config.sg_t_end) # 12
 
     if model == "sd1.4" or model == "sd1.5" or model == "sd2.1" or model == "spright":
         num_inference_steps = 500
