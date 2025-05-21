@@ -51,8 +51,7 @@ def get_config():
     # t2i-comp-bench
     parser.add_argument("--port", default=2)
     parser.add_argument("--confidence-threshold", type=float, default=0.5)
-    parser.add_argument("--outpath", type=str, default="images",
-                        help="Path to output score")  # experiments/t2i-comp-bench-spatial/
+    parser.add_argument("--outpath", type=str, default="images", help="Path to output score")  # experiments/t2i-comp-bench-spatial/
     parser.add_argument("--complex", type=bool, default=False, help="Prompt is simple structure or in complex category")
     parser.add_argument("--mode", default="client")
 
@@ -65,13 +64,11 @@ def get_config():
 def init_pipeline(device, model_information):
     model, model_id = model_information
     if model == "sdxl":
-        pipe = SpatialLossSDXLPipeline.from_pretrained(model_id, 
-                                                    use_safetensors=True, torch_dtype=torch.float16, 
-                                                    use_onnx=False).to(device)
+        pipe = SpatialLossSDXLPipeline.from_pretrained(model_id, use_safetensors=True, torch_dtype=torch.float16, use_onnx=False, cache_dir="./hf_cache")
     if model == "sd1.4" or model == "sd1.5" or model == "sd2.1":
-        pipe = SpatialLossSDPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
+        pipe = SpatialLossSDPipeline.from_pretrained(model_id, torch_dtype=torch.float16, cache_dir="./hf_cache")
     if model == "spright":
-        pipe = SpatialLossSDPipeline.from_pretrained(model_id, torch_dtype=torch.float16, use_safetensors=True,)
+        pipe = SpatialLossSDPipeline.from_pretrained(model_id, torch_dtype=torch.float16, use_safetensors=True, cache_dir="./hf_cache")
         
     pipe = pipe.to(device)
     pipe.scheduler = diffusers.DDPMScheduler.from_config(pipe.scheduler.config, timestep_spacing="trailing")

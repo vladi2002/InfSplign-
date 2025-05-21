@@ -41,6 +41,15 @@ def run_t2i_evaluation(config, relationship=None):
     t2i_spatial_score(config, relationship=relationship)
 
 
+def run_t2i_evaluation_sweep(config, relationship=None):
+    # t2i_spatial_score(config, relationship=relationship)
+    for loss in ["relu", "gelu", "sigmoid"]:
+        margin = 0.25
+        img_id = f"{loss}_m={margin}_centr_mean"
+        config.img_id = img_id
+        t2i_spatial_score(config, relationship=relationship)
+
+
 if __name__ == "__main__":
     config = get_config()
     run_evaluation(config, relationship=None)

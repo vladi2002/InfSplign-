@@ -6,3 +6,6 @@ objdet_results
 data_splits
 attention_maps
 UniDet_eval/experts/expert_weights/*
+sbatch_files
+hf_cache
+slurm-*
