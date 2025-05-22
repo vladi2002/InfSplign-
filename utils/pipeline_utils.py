@@ -6,6 +6,7 @@ from PIL import Image, ImageDraw
 from diffusers import LMSDiscreteScheduler, DDIMScheduler, DDPMScheduler, PNDMScheduler, StableDiffusionPipeline
 from transformers import OwlViTProcessor, OwlViTForObjectDetection
 from utils.visor_utils import process_detection
+from tqdm import tqdm
 
 
 def get_prompts_ann_from_json(json_name):
@@ -87,7 +88,7 @@ def create_object_detection_annotations(config, prompts_data, processor, model, 
     # with open(f'objdet_results/{baseline}/{json_filename}.json', 'w') as f:
     #     json_file = json.load(f)
     
-    for item in prompts_data:
+    for item in tqdm(prompts_data):
         if item == 4:
             break
         uniq_id = item["text"]
@@ -135,7 +136,6 @@ def create_object_detection_annotations(config, prompts_data, processor, model, 
                 os.makedirs(f"images/{baseline}/{json_filename}/bbox", exist_ok=True)
                 image_with_boxes.save(f"images/{baseline}/{json_filename}/bbox/{img_id}.png")
         items += 1
-        print(items)
 
     # REWROTE
     save_dir = os.path.join('objdet_results', 'visor', f"{baseline}_{model_type}")

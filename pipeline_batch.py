@@ -45,7 +45,9 @@ def get_config():
     parser.add_argument("--sg_grad_wt", default=1)
     parser.add_argument("--grad_norm_scale", default=False)
     parser.add_argument("--target_guidance", default=3000)
-    parser.add_argument("--use_clip_reward", default=False, action="store_true")
+    parser.add_argument("--use_clip_loss", default=False, action="store_true")
+    parser.add_argument("--clip_weight", default=1.0)
+    parser.add_argument("--w_t", default=5.0)
 
     # t2i-comp-bench
     parser.add_argument("--port", default=2)
@@ -116,7 +118,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   plot_centroid=False, save_aux=False, two_objects=False, weight_combinations=None,
                   do_multiprocessing=False, img_id="", update_latents=False, benchmark=None, centroid_type="sg",
                   batch_size=1, model="model_name", run_base=False, grad_norm_scale=False, target_guidance=3000.0, 
-                  use_clip_reward=False):
+                  clip_weight=1.0, use_clip_loss=False):
     # print("num_images_per_prompt", num_images_per_prompt)
 
     if benchmark is not None or do_multiprocessing:
@@ -220,7 +222,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                                self_guidance_mode=self_guidance_mode, loss_type=loss_type, loss_num=int(loss_num),
                                plot_centroid=plot_centroid, save_aux=save_aux, two_objects=two_objects,
                                update_latents=update_latents, grad_norm_scale=grad_norm_scale, 
-                               target_guidance=target_guidance, use_clip_reward=use_clip_reward).images
+                               target_guidance=target_guidance, clip_weight=clip_weight, use_clip_loss=use_clip_loss).images
 
                     filtered_paths = [path for path, should_gen in zip(out_filenames, files_to_generate) if
                                       should_gen]
@@ -235,7 +237,7 @@ def run_on_gpu(device, all_prompts, all_words, attn_greenlist, seeds, num_infere
                self_guidance_mode=False, two_objects=False, plot_centroid=False, weight_combinations=None,
                do_multiprocessing=False, img_id="", update_latents=False, save_dir_name="", centroid_type="sg",
                benchmark=None, batch_size=1, model="model_name", grad_norm_scale=False,
-               target_guidance=3000.0, use_clip_reward=False):
+               target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False):
 
     model_information = get_model_id(model)
     pipe = init_pipeline(device, model_information)
@@ -256,7 +258,7 @@ def run_on_gpu(device, all_prompts, all_words, attn_greenlist, seeds, num_infere
                   do_multiprocessing=do_multiprocessing, img_id=img_id,
                   update_latents=update_latents, save_dir_name=save_dir_name,
                   centroid_type=centroid_type, benchmark=benchmark, batch_size=batch_size, model=model, grad_norm_scale=grad_norm_scale,
-                  target_guidance=target_guidance, use_clip_reward=use_clip_reward)
+                  target_guidance=target_guidance, clip_weight=clip_weight, use_clip_loss=use_clip_loss)
 
 
 def start_multiprocessing(attn_greenlist, json_filename, seeds,
@@ -266,7 +268,7 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                           two_objects, plot_centroid, weight_combinations,
                           do_multiprocessing, img_id, update_latents, benchmark,
                           save_dir_name, centroid_type, batch_size, model, world_size, rank, device,
-                          grad_norm_scale, target_guidance, use_clip_reward):
+                          grad_norm_scale, target_guidance, clip_weight, use_clip_loss):
     
     data_for_rank = get_prompts_for_rank(world_size, rank, json_filename)
 
@@ -298,7 +300,8 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                 two_objects, plot_centroid, weight_combinations,
                 do_multiprocessing, img_id, update_latents, save_dir_name,
                 centroid_type,
-                benchmark, batch_size, model, grad_norm_scale, target_guidance, use_clip_reward)
+                benchmark, batch_size, model, grad_norm_scale, target_guidance, 
+                clip_weight, use_clip_loss)
 
 
 def generate_images(config):
@@ -332,7 +335,9 @@ def generate_images(config):
     sg_t_end = int(config.sg_t_end)
     grad_norm_scale = bool(config.grad_norm_scale)
     target_guidance = float(config.target_guidance)
-    use_clip_reward = bool(config.use_clip_reward)
+    use_clip_loss = bool(config.use_clip_loss)
+    clip_weight = float(config.clip_weight)
+    w_t = float(config.w_t)
 
     print("Model Information: ", model_information)
     print("grad_norm_scale", grad_norm_scale)
@@ -359,7 +364,9 @@ def generate_images(config):
     print("num_inference_steps", num_inference_steps)
     print("sg_t_start", sg_t_start)
     print("sg_t_end", sg_t_end)
-    print("use_clip_reward: ", use_clip_reward)
+    print("use_clip_loss: ", use_clip_loss)
+    print("clip_weight", clip_weight)
+    print("w_t", w_t)
 
     if benchmark == "t2i":
         with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
@@ -452,7 +459,7 @@ def generate_images(config):
         weight_combinations = [(0, 100.0, 0, 0)]
     else:
         sg_grad_wt = 1000.  # weight on self guidance term in sampling
-        weight_combinations = [(0, 5.0, 0, 0)]
+        weight_combinations = [(0, w_t, 0, 0)]
 
     sg_loss_rescale = 1000.  # to avoid numerical underflow, scale loss by this amount and then divide gradients after backprop
     # sg_t_start = 0
@@ -481,7 +488,7 @@ def generate_images(config):
             two_objects, plot_centroid, weight_combinations,
             do_multiprocessing, img_id, update_latents, benchmark,
             save_dir_name, centroid_type, batch_size, model, world_size, rank, device,
-            grad_norm_scale, target_guidance, use_clip_reward)
+            grad_norm_scale, target_guidance, clip_weight, use_clip_loss)
 
     else:
         pipe = init_pipeline(device, model_information)
@@ -501,7 +508,8 @@ def generate_images(config):
                       weight_combinations=weight_combinations, do_multiprocessing=do_multiprocessing, img_id=img_id,
                       update_latents=update_latents, benchmark=benchmark, centroid_type=centroid_type,
                       batch_size=batch_size, model=model, run_base=run_base,
-                      grad_norm_scale=grad_norm_scale, target_guidance=target_guidance, use_clip_reward=use_clip_reward)
+                      grad_norm_scale=grad_norm_scale, target_guidance=target_guidance, 
+                      clip_weight=clip_weight, use_clip_loss=use_clip_loss)
 
 
 def sweep(config):

@@ -78,7 +78,7 @@ class Splign:
                  relative=False, idxs=None, L2=False, module_name=None,
                  cluster_objects=False, prompt=None, relationship="other",
                  alpha=1, margin=0.5, logger=None, self_guidance_mode=False, plot_centroid=False,
-                 two_objects=False, centroid_type="sg"):        
+                 two_objects=False, centroid_type="sg"):  
         # print("attn len: ", len(attn))
         timestep = i
         attn = attn[i]
@@ -109,9 +109,11 @@ class Splign:
                 obj_indices = idxs[current_idx:current_idx+num_words]
                 object_token_mapping.append(obj_indices)
                 current_idx += num_words
-
+                
             centroids = []
+
             for i, obj_indices in enumerate(object_token_mapping):
+                # If object has multiple words, combine them into one attention map.
                 combined_attn_map = None
                 for idx in obj_indices:
                     attn_map = attn[..., idx:idx+1]
@@ -123,6 +125,7 @@ class Splign:
                 if len(obj_indices) > 1:
                     combined_attn_map /= len(obj_indices)
 
+                # Calculate centroid from attention map
                 if centroid_type == "sg":
                     obs_centroid = Splign._centroid_sg(combined_attn_map)
                     obs_centroid = obs_centroid.mean(1, keepdim=True)
