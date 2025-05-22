@@ -36,8 +36,8 @@ def get_config():
     parser.add_argument("--batch_size", default=1)
     parser.add_argument("--gaussian_smoothing", default=False)
     parser.add_argument("--masked_mean", default=False)
-    parser.add_argument("--masked_mean_thresh", default=None)
-    parser.add_argument("--masked_mean_weight", default=None)
+    parser.add_argument("--masked_mean_thresh", default=0)
+    parser.add_argument("--masked_mean_weight", default=0)
 
     parser.add_argument("--num_inference_steps", default=1)
     parser.add_argument("--sg_t_start", default=1)
@@ -86,7 +86,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   do_multiprocessing=False, img_id="", update_latents=False, benchmark=None, centroid_type="sg",
                   batch_size=1, model="model_name", run_base=False, smoothing=False, masked_mean=False,
                   grad_norm_scale=False, target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False, object_presence=False,
-                  masked_mean_thresh=None, masked_mean_weight=None):
+                  masked_mean_thresh=0.0, masked_mean_weight=0.0):
     # print("num_images_per_prompt", num_images_per_prompt)
 
     if benchmark is not None or do_multiprocessing:
@@ -218,7 +218,7 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                do_multiprocessing=False, img_id="", update_latents=False, save_dir_name="", centroid_type="sg",
                benchmark=None, batch_size=1, model="model_name", smoothing=False, masked_mean=False, grad_norm_scale=False,
                target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False, object_presence=False,
-               masked_mean_thresh=None, masked_mean_weight=None):
+               masked_mean_thresh=0.0, masked_mean_weight=0.0):
     torch.cuda.set_device(gpu_id)
     device = torch.device(f"cuda:{gpu_id}")
 
@@ -383,7 +383,6 @@ def generate_images(config):
             "near": [(0.25, 0.5), (0.75, 0.5)]  # left
         }
 
-    # TODO: USE JUST ONE OBJECT -> NO ATTENTION SUMMING
     elif benchmark == "visor":
         with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
             visor_data = json.load(f)
@@ -604,6 +603,17 @@ def run_ablation_object_presence(config):
         config.loss_type = loss
         object_presence = config.object_presence
         img_id = f"loss_{loss}_object_presence_{object_presence}_ablation_132"
+        config.img_id = img_id
+        generate_images(config)
+        
+        
+def run_ablation_masked_mean(config):
+    # for masked_mean_thresh in [0.1, 0.25, 0.5]:
+    for masked_mean_weight in [0.5, 1.0, 2.0]:
+        masked_mean_thresh = config.masked_mean_thresh
+        config.masked_mean_weight = masked_mean_weight
+        loss = config.loss_type
+        img_id = f"loss_{loss}_masked_mean_thresh_{masked_mean_thresh}_weight_{masked_mean_weight}_ablation_132"
         config.img_id = img_id
         generate_images(config)
 

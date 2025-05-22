@@ -135,7 +135,7 @@ def create_object_detection_annotations(config, prompts_data, processor, model, 
                 os.makedirs(f"images/{baseline}/{json_filename}/bbox", exist_ok=True)
                 image_with_boxes.save(f"images/{baseline}/{json_filename}/bbox/{img_id}.png")
         items += 1
-        print(items)
+        # print(items)
 
     # REWROTE
     save_dir = os.path.join('objdet_results', 'visor', f"{baseline}_{model_type}")

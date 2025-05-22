@@ -26,6 +26,7 @@ def run_visor_evaluation(config, relationship=None):
         prompts_data = json.load(f)
 
     obj_det_ann_path = os.path.join('objdet_results', 'visor', model_name, f'{json_filename}.json')
+    print(f"obj_det_ann_path: {obj_det_ann_path}")
     if not os.path.isfile(obj_det_ann_path):
         processor, obj_det_model = initialize_object_detection_model(config)
         create_object_detection_annotations(config, prompts_data, processor, obj_det_model, relationship=relationship)
@@ -48,8 +49,17 @@ def run_t2i_evaluation_sweep(config, relationship=None):
         img_id = f"{loss}_m={margin}_centr_mean"
         config.img_id = img_id
         t2i_spatial_score(config, relationship=relationship)
+        
+
+def run_visor_evaluation_sweep(config, relationship=None):
+    for loss in ["gelu", "sigmoid"]:
+        for loss_num in [1, 2, 3]:
+            img_id = f"loss_{loss}_loss_num_{loss_num}_ablation_132"
+            config.img_id = img_id
+            run_visor_evaluation(config, relationship=relationship)
 
 
 if __name__ == "__main__":
     config = get_config()
-    run_evaluation(config, relationship=None)
+    # run_evaluation(config, relationship=None)
+    run_visor_evaluation_sweep(config, relationship=None)
