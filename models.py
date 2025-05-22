@@ -577,6 +577,8 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
             object_presence=False,
             masked_mean_thresh=None,
             masked_mean_weight=None,
+            write_to_file=False,
+            save_dir_name="save_dir"
     ):
         # 0. Default height and width to unet
         global clip_objects
@@ -659,9 +661,15 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
         # 7. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
 
-        # # Setup logger
-        # if filename is not None:
-        #     logger = setup_logger(filename=filename)
+        # Setup logger
+        if write_to_file:
+            filename = save_dir_name.split('\\')[-1] if '\\' in save_dir_name else save_dir_name
+
+            logs_folder = "logs"
+            os.makedirs(logs_folder, exist_ok=True)
+
+            filename = os.path.join(logs_folder, f"{filename}_{prompt[0]}.log")
+            logger = setup_logger(filename=filename)
 
         self.wipe_sg_aux()
         torch.cuda.empty_cache()
@@ -712,9 +720,6 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                     # rewards = self.compute_scores(pred_original_temp, prompt)
 
                     ### SELF GUIDANCE
-                    if logger is not None:
-                        logger.info(f"Timestep {i}")
-
                     if do_self_guidance and (sg_t_start <= i < sg_t_end or i + 1 in self_guidance_alternate_steps):
                         sg_aux = self.get_sg_aux(do_classifier_free_guidance)  # here it's extracting the cond term
                         spatial_losses = []
@@ -772,9 +777,6 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                                             lst1.extend(result)
 
                                         edit_loss1 = torch.stack(lst1).mean()
-                                        # print("result: ", edit_loss1)
-                                        if logger is not None:
-                                            logger.info(f"{function}: {edit_loss1.item()}")
                                         spatial_loss_b += wt * edit_loss1
 
                                 # right now there is just one edit dictionary!!!
@@ -805,6 +807,11 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                         # print("grad at idx", spatial_grad[0].flatten()[idx].item())
                         # print("before", noise_pred[0].flatten()[idx].item())
                         # noise_pred_before = noise_pred.clone()
+
+                        if logger is not None: # noise_pred min: {noise_pred.min().item()}, noise_pred mean: {noise_pred.mean().item()}, noise_pred max: {noise_pred.max().item()}
+                            logger.info(
+                                f"Timestep {i}, spatial loss: {spatial_losses_batch.item()}, grad min: {sg_grad_wt * spatial_grad.min().item()}, grad mean: {sg_grad_wt * spatial_grad.mean().item()}, grad max: {sg_grad_wt * spatial_grad.max().item()}")
+
                         if use_clip_loss:
                             noise_pred = noise_pred + sg_grad_wt * spatial_grad + clip_weight * clip_grad
                         else:

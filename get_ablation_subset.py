@@ -111,6 +111,6 @@ for obj, count in sorted(obj_counter.items(), key=lambda x: -x[1]):
     print(f"{obj}: {count}")
 
 # # Save the balanced entries to a JSON file
-# output_file = os.path.join('json_files', 'visor_balanced_subset.json')
+# output_file = os.path.join('json_files', 'visor_ablation_132.json')
 # with open(output_file, 'w') as f:
 #     json.dump(balanced_entries, f, indent=4)

@@ -49,6 +49,7 @@ def get_config():
     parser.add_argument("--use_clip_loss", default=False)
     parser.add_argument("--num_attn_layers", default=9)
     parser.add_argument("--object_presence", default=False)
+    parser.add_argument("--write_to_file", default=False)
 
     # t2i-comp-bench
     parser.add_argument("--port", default=2)
@@ -66,11 +67,11 @@ def get_config():
 def init_pipeline(device, model_information):
     model, model_id = model_information
     if model == "sdxl":
-        pipe = SpatialLossSDXLPipeline.from_pretrained(model_id, use_safetensors=True, torch_dtype=torch.float16, use_onnx=False, cache_dir="./hf_cache")
+        pipe = SpatialLossSDXLPipeline.from_pretrained(model_id, use_safetensors=True, torch_dtype=torch.float16, use_onnx=False)
     if model == "sd1.4" or model == "sd1.5" or model == "sd2.1":
-        pipe = SpatialLossSDPipeline.from_pretrained(model_id, torch_dtype=torch.float16, cache_dir="./hf_cache")
+        pipe = SpatialLossSDPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
     if model == "spright":
-        pipe = SpatialLossSDPipeline.from_pretrained(model_id, torch_dtype=torch.float16, use_safetensors=True, cache_dir="./hf_cache")
+        pipe = SpatialLossSDPipeline.from_pretrained(model_id, torch_dtype=torch.float16, use_safetensors=True)
         
     pipe = pipe.to(device)
     pipe.scheduler = diffusers.DDPMScheduler.from_config(pipe.scheduler.config, timestep_spacing="trailing")
@@ -86,7 +87,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   do_multiprocessing=False, img_id="", update_latents=False, benchmark=None, centroid_type="sg",
                   batch_size=1, model="model_name", run_base=False, smoothing=False, masked_mean=False,
                   grad_norm_scale=False, target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False, object_presence=False,
-                  masked_mean_thresh=0.0, masked_mean_weight=0.0):
+                  masked_mean_thresh=0.0, masked_mean_weight=0.0, write_to_file=False):
     # print("num_images_per_prompt", num_images_per_prompt)
 
     if benchmark is not None or do_multiprocessing:
@@ -202,7 +203,8 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                                update_latents=update_latents, img_id=img_id, smoothing=smoothing,
                                masked_mean=masked_mean, grad_norm_scale=grad_norm_scale, target_guidance=target_guidance,
                                clip_weight=clip_weight, use_clip_loss=use_clip_loss, object_presence=object_presence,
-                               masked_mean_thresh=masked_mean_thresh, masked_mean_weight=masked_mean_weight).images
+                               masked_mean_thresh=masked_mean_thresh, masked_mean_weight=masked_mean_weight,
+                               write_to_file=write_to_file,save_dir_name=save_dir_name).images
 
                     filtered_paths = [path for path, should_gen in zip(out_filenames, files_to_generate) if
                                       should_gen]
@@ -218,7 +220,7 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                do_multiprocessing=False, img_id="", update_latents=False, save_dir_name="", centroid_type="sg",
                benchmark=None, batch_size=1, model="model_name", smoothing=False, masked_mean=False, grad_norm_scale=False,
                target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False, object_presence=False,
-               masked_mean_thresh=0.0, masked_mean_weight=0.0):
+               masked_mean_thresh=0.0, masked_mean_weight=0.0, write_to_file=False):
     torch.cuda.set_device(gpu_id)
     device = torch.device(f"cuda:{gpu_id}")
 
@@ -244,7 +246,7 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                   smoothing=smoothing, masked_mean=masked_mean, grad_norm_scale=grad_norm_scale,
                   target_guidance=target_guidance, clip_weight=clip_weight, use_clip_loss=use_clip_loss,
                   object_presence=object_presence, masked_mean_thresh=masked_mean_thresh,
-                  masked_mean_weight=masked_mean_weight)
+                  masked_mean_weight=masked_mean_weight, write_to_file=write_to_file)
 
 
 def start_multiprocessing(attn_greenlist, json_filename, seeds,
@@ -255,7 +257,7 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                           do_multiprocessing, img_id, update_latents, benchmark,
                           save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean,
                           grad_norm_scale, target_guidance, clip_weight, use_clip_loss, object_presence,
-                          masked_mean_thresh, masked_mean_weight):
+                          masked_mean_thresh, masked_mean_weight, write_to_file):
     # MULTIPROCESSING
     # SHELL
     num_gpus = torch.cuda.device_count()
@@ -293,7 +295,7 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                                                 centroid_type,
                                                 benchmark, batch_size, model, smoothing, masked_mean,
                                                 grad_norm_scale, target_guidance, clip_weight, use_clip_loss,
-                                                object_presence, masked_mean_thresh, masked_mean_weight))
+                                                object_presence, masked_mean_thresh, masked_mean_weight, write_to_file))
         p.start()
         processes.append(p)
 
@@ -338,6 +340,8 @@ def generate_images(config):
     use_clip_loss = bool(config.use_clip_loss)
     object_presence = bool(config.object_presence)
     print("object_presence", object_presence)
+
+    write_to_file = bool(config.write_to_file)
 
     # print("grad_norm_scale", grad_norm_scale)
     # print("target_guidance", target_guidance)
@@ -388,7 +392,7 @@ def generate_images(config):
             visor_data = json.load(f)
 
         all_prompts, all_words = [], {}
-        for data in visor_data:
+        for data in visor_data[:10]:
             prompt = data['text']
             all_prompts.append(prompt)
             # all_words[prompt] = [data['obj_1_attributes'][0], data["obj_2_attributes"][0]]
@@ -398,9 +402,10 @@ def generate_images(config):
                 data['obj_2_attributes'][0].split()[1] if len(data['obj_2_attributes'][0].split()) > 1 else data['obj_2_attributes'][0]
             ]
 
+        print("len all_prompts", len(all_prompts))
         seeds = [42]
         vocab_spatial = ["to the left of", "to the right of", "above", "below"]
-        num_images_per_prompt = 4
+        num_images_per_prompt = 1
         shifts = {
             "to the left of": [(0., 0.5), (1., 0.5)],
             "to the right of": [(1., 0.5), (0., 0.5)],
@@ -434,7 +439,7 @@ def generate_images(config):
         }
 
     if benchmark is not None:
-        save_dir_name = os.path.join(benchmark, f"{model}_{img_id}")
+        save_dir_name = os.path.join(benchmark, f"{model}_{loss_type}_{img_id}")
     print("img_id", img_id)
     print("save_dir_name", save_dir_name)
 
@@ -524,7 +529,7 @@ def generate_images(config):
             do_multiprocessing, img_id, update_latents, benchmark,
             save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean,
             grad_norm_scale, target_guidance, clip_weight, use_clip_loss, object_presence,
-            masked_mean_thresh, masked_mean_weight)
+            masked_mean_thresh, masked_mean_weight, write_to_file)
 
     else:
         print(device)
@@ -550,7 +555,7 @@ def generate_images(config):
                       batch_size=batch_size, model=model, run_base=run_base, smoothing=smoothing, masked_mean=masked_mean,
                       grad_norm_scale=grad_norm_scale, target_guidance=target_guidance, clip_weight=clip_weight,
                       use_clip_loss=use_clip_loss, object_presence=object_presence, masked_mean_thresh=masked_mean_thresh,
-                      masked_mean_weight=masked_mean_weight)
+                      masked_mean_weight=masked_mean_weight, write_to_file=write_to_file)
 
 
 def run_sweep_experiments(config):
@@ -605,8 +610,8 @@ def run_ablation_object_presence(config):
         img_id = f"loss_{loss}_object_presence_{object_presence}_ablation_132"
         config.img_id = img_id
         generate_images(config)
-        
-        
+
+
 def run_ablation_masked_mean(config):
     # for masked_mean_thresh in [0.1, 0.25, 0.5]:
     for masked_mean_weight in [0.5, 1.0, 2.0]:
