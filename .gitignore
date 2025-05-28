@@ -3,5 +3,13 @@ __pycache__/
 
 images
 objdet_results
-data_splits
 UniDet_eval/experts/expert_weights/*
+
+data_splits
+attention_maps
+
+hf_cache
+logs
+
+sbatch_files
+*.out

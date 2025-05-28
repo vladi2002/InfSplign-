@@ -162,11 +162,11 @@ def get_attention_map(edit, timestep, block, word, prompt, seed=0, sample=0, cou
 
 def plot_attention_map(edit, timestep, block, centroid=None, object="",
                        loss_type="relu", loss_num=1, prompt="",
-                       margin=0.5, alpha=1):
+                       margin=0.5, alpha=1, attn_folder="attention_maps", img_id=""):
     edit_img = prepare_attention_map(edit)
 
     # save_dir = os.path.join(loss_type, "attention_maps")
-    save_dir = f"{prompt}_sd1.5_relu_centroid_mean_png"
+    save_dir = os.path.join("attention_maps", img_id, f"{prompt}_sd1.4_{loss_type}")
     os.makedirs(save_dir, exist_ok=True)
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 10))
@@ -189,17 +189,17 @@ def plot_attention_map(edit, timestep, block, centroid=None, object="",
 
     # title = f"{prompt}, t={timestep}, object={object}\n{loss_type} loss={loss_num} margin={margin} alpha={alpha}\n{block}"
     # ax.set_title(title, loc='center', wrap=True)
-    
+
     ax.set_title(object)
-    ax.axis("off")    
-    
+    ax.axis("off")
+
     # attn_folder = f"attn_{prompt}_100_pt"
     # os.makedirs(attn_folder, exist_ok=True)
-    
+
     fig_name = f"t={timestep} object={object} {block} {prompt}"
     # filename = os.path.join(attn_folder, f"{fig_name}.pt")
     # torch.save(edit, filename)
-    
+
     fig.savefig(os.path.join(save_dir, f"{fig_name}.png"))
     matplotlib.pyplot.close()
 

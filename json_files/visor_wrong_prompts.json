@@ -1,0 +1,122 @@
+[
+    {
+        "unique_id": 281,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "frisbee"
+        ],
+        "obj_2_attributes": [
+            "person"
+        ],
+        "rel_type": "to the left of",
+        "text": "a frisbee to the left of a person"
+    },
+    {
+        "unique_id": 1263,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "orange"
+        ],
+        "obj_2_attributes": [
+            "bicycle"
+        ],
+        "rel_type": "to the right of",
+        "text": "an orange to the right of a bicycle"
+    },
+    {
+        "unique_id": 3403,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "baseball glove"
+        ],
+        "obj_2_attributes": [
+            "airplane"
+        ],
+        "rel_type": "to the right of",
+        "text": "a baseball glove to the right of an airplane"
+    },
+    {
+        "unique_id": 7684,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "fire hydrant"
+        ],
+        "obj_2_attributes": [
+            "baseball bat"
+        ],
+        "rel_type": "above",
+        "text": "a fire hydrant above a baseball bat"
+    },
+    {
+        "unique_id": 8667,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "mouse"
+        ],
+        "obj_2_attributes": [
+            "stop sign"
+        ],
+        "rel_type": "below",
+        "text": "a mouse below a stop sign"
+    },
+    {
+        "unique_id": 20533,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "donut"
+        ],
+        "obj_2_attributes": [
+            "sports ball"
+        ],
+        "rel_type": "to the right of",
+        "text": "a donut to the right of a sports ball"
+    },
+    {
+        "unique_id": 21267,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "skateboard"
+        ],
+        "obj_2_attributes": [
+            "baseball bat"
+        ],
+        "rel_type": "below",
+        "text": "a skateboard below a baseball bat"
+    },
+    {
+        "unique_id": 21376,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "baseball bat"
+        ],
+        "obj_2_attributes": [
+            "apple"
+        ],
+        "rel_type": "below",
+        "text": "a baseball bat below an apple"
+    },
+    {
+        "unique_id": 25570,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "spoon"
+        ],
+        "obj_2_attributes": [
+            "refrigerator"
+        ],
+        "rel_type": "to the left of",
+        "text": "a spoon to the left of a refrigerator"
+    },
+    {
+        "unique_id": 31430,
+        "num_objects": 2,
+        "obj_1_attributes": [
+            "book"
+        ],
+        "obj_2_attributes": [
+            "hair drier"
+        ],
+        "rel_type": "to the left of",
+        "text": "a book to the left of a hair drier"
+    }
+]
