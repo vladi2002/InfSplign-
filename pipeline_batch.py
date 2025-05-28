@@ -457,11 +457,7 @@ def generate_images(config):
             "below": [(0.5, 1), (0.5, 0)]
         }
 
-    if benchmark is not None:
-        save_dir_name = os.path.join(benchmark, f"{model}_{img_id}")
-    if use_energy:
-        save_dir_name = os.path.join(benchmark, f"{model}_{loss_type}_{img_id}")
-    print("img_id", img_id)
+    save_dir_name = os.path.join(benchmark, f"{model}_{img_id}")
     print("save_dir_name", save_dir_name)
 
     if model == "sdxl":
