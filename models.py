@@ -168,6 +168,9 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
             object_presence=False,
             masked_mean_thresh=None,
             masked_mean_weight=None,
+            write_to_file=False,
+            save_dir_name="save_dir",
+            use_energy=False
     ):
         # 0. Default height and width to unet
         height = height or self.default_sample_size * self.vae_scale_factor
@@ -578,7 +581,10 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
             masked_mean_thresh=None,
             masked_mean_weight=None,
             write_to_file=False,
-            save_dir_name="save_dir"
+            save_dir_name="save_dir",
+            use_energy=False,
+            no_wt=False,
+            leaky_relu_slope=0.05
     ):
         # 0. Default height and width to unet
         global clip_objects
@@ -663,9 +669,9 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
 
         # Setup logger
         if write_to_file:
-            filename = save_dir_name.split('\\')[-1] if '\\' in save_dir_name else save_dir_name
+            filename = os.path.basename(save_dir_name)
 
-            logs_folder = "logs"
+            logs_folder = "logs_attn"
             os.makedirs(logs_folder, exist_ok=True)
 
             filename = os.path.join(logs_folder, f"{filename}_{prompt[0]}.log")
@@ -773,11 +779,17 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                                                                 centroid_type=centorid_type,
                                                                 img_id=img_id, smoothing=smoothing,
                                                                 masked_mean=masked_mean, object_presence=object_presence,
-                                                                masked_mean_thresh=masked_mean_thresh, masked_mean_weight=masked_mean_weight)
+                                                                masked_mean_thresh=masked_mean_thresh, masked_mean_weight=masked_mean_weight,
+                                                                use_energy=use_energy, leaky_relu_slope=leaky_relu_slope)
                                             lst1.extend(result)
+                                            if logger is not None:
+                                                logger.info(f"Timestep {i}, spatial loss: {result[0].item()}, block: {module_name}")
 
                                         edit_loss1 = torch.stack(lst1).mean()
-                                        spatial_loss_b += wt * edit_loss1
+                                        if no_wt:
+                                            spatial_loss_b += edit_loss1
+                                        else:
+                                            spatial_loss_b += wt *  edit_loss1
 
                                 # right now there is just one edit dictionary!!!
                             spatial_losses.append(spatial_loss_b)
@@ -810,7 +822,7 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
 
                         if logger is not None: # noise_pred min: {noise_pred.min().item()}, noise_pred mean: {noise_pred.mean().item()}, noise_pred max: {noise_pred.max().item()}
                             logger.info(
-                                f"Timestep {i}, spatial loss: {spatial_losses_batch.item()}, grad min: {sg_grad_wt * spatial_grad.min().item()}, grad mean: {sg_grad_wt * spatial_grad.mean().item()}, grad max: {sg_grad_wt * spatial_grad.max().item()}")
+                                f"Timestep {i}, grad min: {sg_grad_wt * spatial_grad.min().item()}, grad mean: {sg_grad_wt * spatial_grad.mean().item()}, grad max: {sg_grad_wt * spatial_grad.max().item()}")
 
                         if use_clip_loss:
                             noise_pred = noise_pred + sg_grad_wt * spatial_grad + clip_weight * clip_grad

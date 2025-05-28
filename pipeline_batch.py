@@ -12,6 +12,9 @@ from utils.model_utils import set_attention_processors
 from utils.model_utils import get_model_id
 
 
+os.environ["HF_HOME"] = "/tudelft.net/staff-umbrella/StudentsCVlab/vchatalbasheva/Thesis-Splign/hf_cache"
+
+
 def get_config():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="sdxl")
@@ -50,6 +53,11 @@ def get_config():
     parser.add_argument("--num_attn_layers", default=9)
     parser.add_argument("--object_presence", default=False)
     parser.add_argument("--write_to_file", default=False)
+    parser.add_argument("--use_energy", default=False)
+    
+    parser.add_argument("--num_images_per_prompt", default=4)
+    parser.add_argument("--no_wt", default=False)
+    parser.add_argument("--leaky_relu_slope", default=0.05)
 
     # t2i-comp-bench
     parser.add_argument("--port", default=2)
@@ -87,7 +95,8 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   do_multiprocessing=False, img_id="", update_latents=False, benchmark=None, centroid_type="sg",
                   batch_size=1, model="model_name", run_base=False, smoothing=False, masked_mean=False,
                   grad_norm_scale=False, target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False, object_presence=False,
-                  masked_mean_thresh=0.0, masked_mean_weight=0.0, write_to_file=False):
+                  masked_mean_thresh=0.0, masked_mean_weight=0.0, write_to_file=False, use_energy=False, no_wt=False,
+                  leaky_relu_slope=0.05):
     # print("num_images_per_prompt", num_images_per_prompt)
 
     if benchmark is not None or do_multiprocessing:
@@ -204,7 +213,8 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                                masked_mean=masked_mean, grad_norm_scale=grad_norm_scale, target_guidance=target_guidance,
                                clip_weight=clip_weight, use_clip_loss=use_clip_loss, object_presence=object_presence,
                                masked_mean_thresh=masked_mean_thresh, masked_mean_weight=masked_mean_weight,
-                               write_to_file=write_to_file,save_dir_name=save_dir_name).images
+                               write_to_file=write_to_file, save_dir_name=save_dir_name, use_energy=use_energy,
+                               no_wt=no_wt, leaky_relu_slope=leaky_relu_slope).images
 
                     filtered_paths = [path for path, should_gen in zip(out_filenames, files_to_generate) if
                                       should_gen]
@@ -220,7 +230,8 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                do_multiprocessing=False, img_id="", update_latents=False, save_dir_name="", centroid_type="sg",
                benchmark=None, batch_size=1, model="model_name", smoothing=False, masked_mean=False, grad_norm_scale=False,
                target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False, object_presence=False,
-               masked_mean_thresh=0.0, masked_mean_weight=0.0, write_to_file=False):
+               masked_mean_thresh=0.0, masked_mean_weight=0.0, write_to_file=False, use_energy=False, no_wt=False,
+               leaky_relu_slope=0.05):
     torch.cuda.set_device(gpu_id)
     device = torch.device(f"cuda:{gpu_id}")
 
@@ -246,7 +257,8 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                   smoothing=smoothing, masked_mean=masked_mean, grad_norm_scale=grad_norm_scale,
                   target_guidance=target_guidance, clip_weight=clip_weight, use_clip_loss=use_clip_loss,
                   object_presence=object_presence, masked_mean_thresh=masked_mean_thresh,
-                  masked_mean_weight=masked_mean_weight, write_to_file=write_to_file)
+                  masked_mean_weight=masked_mean_weight, write_to_file=write_to_file, use_energy=use_energy, no_wt=no_wt,
+                  leaky_relu_slope=leaky_relu_slope)
 
 
 def start_multiprocessing(attn_greenlist, json_filename, seeds,
@@ -257,7 +269,8 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                           do_multiprocessing, img_id, update_latents, benchmark,
                           save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean,
                           grad_norm_scale, target_guidance, clip_weight, use_clip_loss, object_presence,
-                          masked_mean_thresh, masked_mean_weight, write_to_file):
+                          masked_mean_thresh, masked_mean_weight, write_to_file, use_energy, no_wt,
+                          leaky_relu_slope):
     # MULTIPROCESSING
     # SHELL
     num_gpus = torch.cuda.device_count()
@@ -295,7 +308,8 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                                                 centroid_type,
                                                 benchmark, batch_size, model, smoothing, masked_mean,
                                                 grad_norm_scale, target_guidance, clip_weight, use_clip_loss,
-                                                object_presence, masked_mean_thresh, masked_mean_weight, write_to_file))
+                                                object_presence, masked_mean_thresh, masked_mean_weight, write_to_file,
+                                                use_energy, no_wt, leaky_relu_slope))
         p.start()
         processes.append(p)
 
@@ -342,6 +356,11 @@ def generate_images(config):
     print("object_presence", object_presence)
 
     write_to_file = bool(config.write_to_file)
+    use_energy = bool(config.use_energy)
+    no_wt = bool(config.no_wt)
+    print("WEIGHT=5 no_wt", no_wt)
+    
+    leaky_relu_slope = float(config.leaky_relu_slope)
 
     # print("grad_norm_scale", grad_norm_scale)
     # print("target_guidance", target_guidance)
@@ -349,10 +368,10 @@ def generate_images(config):
     # print("L2_norm: ", L2_norm)
     # print("self_guidance_mode: ", self_guidance_mode)
     # print("two_objects: ", two_objects)
-    # print("loss_type: ", loss_type)
-    # print("loss_num: ", loss_num)
-    # print("margin: ", margin)
-    # print("alpha: ", alpha)
+    print("loss_type: ", loss_type)
+    print("loss_num: ", loss_num)
+    print("margin: ", margin)
+    print("alpha: ", alpha)
     # print("plot_centroid: ", plot_centroid)
     # print("do_multiprocessing: ", do_multiprocessing)
     # print("update_latents: ", update_latents)
@@ -392,7 +411,7 @@ def generate_images(config):
             visor_data = json.load(f)
 
         all_prompts, all_words = [], {}
-        for data in visor_data[:10]:
+        for data in visor_data: # [:10]
             prompt = data['text']
             all_prompts.append(prompt)
             # all_words[prompt] = [data['obj_1_attributes'][0], data["obj_2_attributes"][0]]
@@ -405,7 +424,7 @@ def generate_images(config):
         print("len all_prompts", len(all_prompts))
         seeds = [42]
         vocab_spatial = ["to the left of", "to the right of", "above", "below"]
-        num_images_per_prompt = 1
+        num_images_per_prompt = int(config.num_images_per_prompt)
         shifts = {
             "to the left of": [(0., 0.5), (1., 0.5)],
             "to the right of": [(1., 0.5), (0., 0.5)],
@@ -439,6 +458,8 @@ def generate_images(config):
         }
 
     if benchmark is not None:
+        save_dir_name = os.path.join(benchmark, f"{model}_{img_id}")
+    if use_energy:
         save_dir_name = os.path.join(benchmark, f"{model}_{loss_type}_{img_id}")
     print("img_id", img_id)
     print("save_dir_name", save_dir_name)
@@ -462,8 +483,9 @@ def generate_images(config):
             "up_blocks.3.attentions.1.transformer_blocks.0.attn2",
             "up_blocks.3.attentions.2.transformer_blocks.0.attn2"
         ]
-        # num_attn_layers = int(config.num_attn_layers)
-        # attn_greenlist = attn_greenlist[:num_attn_layers]
+        num_attn_layers = int(config.num_attn_layers)
+        attn_greenlist = attn_greenlist[:num_attn_layers]
+        print("num_attn_layers", num_attn_layers)
 
         # cross_attn_layers_sd1.4 = [
         #     # "down_blocks.0.attentions.0.transformer_blocks.0.attn2",
@@ -529,7 +551,7 @@ def generate_images(config):
             do_multiprocessing, img_id, update_latents, benchmark,
             save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean,
             grad_norm_scale, target_guidance, clip_weight, use_clip_loss, object_presence,
-            masked_mean_thresh, masked_mean_weight, write_to_file)
+            masked_mean_thresh, masked_mean_weight, write_to_file, use_energy, no_wt, leaky_relu_slope)
 
     else:
         print(device)
@@ -555,7 +577,8 @@ def generate_images(config):
                       batch_size=batch_size, model=model, run_base=run_base, smoothing=smoothing, masked_mean=masked_mean,
                       grad_norm_scale=grad_norm_scale, target_guidance=target_guidance, clip_weight=clip_weight,
                       use_clip_loss=use_clip_loss, object_presence=object_presence, masked_mean_thresh=masked_mean_thresh,
-                      masked_mean_weight=masked_mean_weight, write_to_file=write_to_file)
+                      masked_mean_weight=masked_mean_weight, write_to_file=write_to_file, use_energy=use_energy, no_wt=no_wt,
+                      leaky_relu_slope=leaky_relu_slope)
 
 
 def run_sweep_experiments(config):
@@ -588,7 +611,10 @@ def run_ablation_spatial_loss_intervention(config):
     #         for sp_loss_range in sp_loss_range_list:
     #             for num_steps in num_inference_steps:
     # img_id = f"sg_t_start_{sg_t_start}_sp_loss_range_{sp_loss_range}_num_steps_{num_steps}"
-    img_id = f"sp_loss_end_{config.sg_t_end}_num_steps_{config.num_inference_steps}"
+    
+    # for loss in ["relu", "gelu", "sigmoid"]: # 100 hours generation on t2i
+    loss = config.loss_type
+    img_id = f"sp_loss_{loss}_end_{config.sg_t_end}_num_steps_{config.num_inference_steps}"
     config.img_id = img_id
 
     generate_images(config)
@@ -604,23 +630,84 @@ def run_ablation_loss_num(config):
     
     
 def run_ablation_object_presence(config):
-    for loss in ["relu", "gelu", "sigmoid"]:
-        config.loss_type = loss
-        object_presence = config.object_presence
-        img_id = f"loss_{loss}_object_presence_{object_presence}_ablation_132"
-        config.img_id = img_id
-        generate_images(config)
+    loss = config.loss_type
+    loss_num = config.loss_num
+    alpha = config.alpha
+    img_id = f"loss_{loss}_loss_num_{loss_num}_alpha_{alpha}_object_presence_6maps_no_wt_ablation_132"
+    config.img_id = img_id
+    generate_images(config)
 
 
 def run_ablation_masked_mean(config):
-    # for masked_mean_thresh in [0.1, 0.25, 0.5]:
-    for masked_mean_weight in [0.5, 1.0, 2.0]:
-        masked_mean_thresh = config.masked_mean_thresh
-        config.masked_mean_weight = masked_mean_weight
-        loss = config.loss_type
-        img_id = f"loss_{loss}_masked_mean_thresh_{masked_mean_thresh}_weight_{masked_mean_weight}_ablation_132"
+    loss = config.loss_type
+    loss_num = config.loss_num
+    alpha = config.alpha
+    img_id = f"loss_{loss}_loss_num_{loss_num}_alpha_{alpha}_masked_mean_6maps_no_wt_ablation_132"
+    config.img_id = img_id
+    generate_images(config)
+    
+    
+def run_ablation_energy(config):
+    loss = config.loss_type
+    loss_num = config.loss_num
+    alpha = config.alpha
+    img_id = f"loss_{loss}_loss_num_{loss_num}_alpha_{alpha}_energy_6maps_no_wt_ablation_132"
+    config.img_id = img_id
+    generate_images(config)
+        
+        
+def get_spatial_loss_stats(config):
+    for loss in ["relu", "gelu", "sigmoid"]:
+        config.loss_type = loss
+        img_id = f"{config.img_id}_{loss}"
         config.img_id = img_id
         generate_images(config)
+        
+        
+def run_ablation_margin(config):
+    for margin in [0.1, 0.25, 0.5, 0.75]:
+        loss = config.loss_type
+        config.margin = margin
+        img_id = f"{loss}_margin_{margin}_ablation_20"
+        config.img_id = img_id
+        generate_images(config)
+        
+        
+def run_ablation_alpha(config):
+    loss = config.loss_type
+    alpha = config.alpha
+    img_id = f"{loss}_alpha_{alpha}_ablation_20"
+    config.img_id = img_id
+    generate_images(config)
+    
+    
+def run_ablation_6attn_maps(config):
+    loss = config.loss_type
+    loss_num = config.loss_num
+    alpha = config.alpha
+    num_attn_maps = config.num_attn_layers
+    if config.no_wt:
+        no_wt = "_no_wt"
+    else:
+        no_wt = ""
+    img_id = f"loss_{loss}_loss_num_{loss_num}_alpha_{alpha}_{num_attn_maps}_attn_maps{no_wt}_ablation_132"
+    config.img_id = img_id
+    generate_images(config)
+    
+    
+def run_ablation_leaky_relu_attn_maps(config):
+    loss = config.loss_type
+    loss_num = config.loss_num
+    alpha = config.alpha
+    num_attn_maps = config.num_attn_layers
+    if config.no_wt:
+        no_wt = "_no_wt"
+    else:
+        no_wt = ""
+    slope = config.leaky_relu_slope
+    img_id = f"loss_{loss}_slope_{slope}_loss_num_{loss_num}_alpha_{alpha}_{num_attn_maps}_attn_maps{no_wt}_ablation_132"
+    config.img_id = img_id
+    generate_images(config)
 
 
 if __name__ == "__main__":

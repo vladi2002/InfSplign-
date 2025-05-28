@@ -3,10 +3,13 @@ __pycache__/
 
 images
 objdet_results
+UniDet_eval/experts/expert_weights/*
+
 data_splits
 attention_maps
-UniDet_eval/experts/expert_weights/*
-sbatch_files
+
 hf_cache
-slurm-*
 logs
+
+sbatch_files
+slurm-*

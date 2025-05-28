@@ -149,7 +149,7 @@ class Splign:
                  cluster_objects=False, prompt=None, relationship="other",
                  alpha=1, margin=0.5, logger=None, self_guidance_mode=False, plot_centroid=False,
                  two_objects=False, centroid_type="sg", img_id=None, smoothing=False, masked_mean=False, object_presence=False,
-                 masked_mean_thresh=0.1, masked_mean_weight=0.5):
+                 masked_mean_thresh=0.1, masked_mean_weight=0.5, use_energy=False, leaky_relu_slope=0.05):
         # print("attn len: ", len(attn))
         timestep = i
         attn = attn[i]
@@ -185,10 +185,14 @@ class Splign:
                 current_idx += num_words
 
             centroids = []
+            energies = []
             for i, obj_indices in enumerate(object_token_mapping):
                 combined_attn_map = None
                 for idx in obj_indices:
                     attn_map = attn[..., idx:idx + 1]
+                    energy = (attn_map ** 2).mean()
+                    energies.append(energy)
+                    
                     if combined_attn_map is None:
                         combined_attn_map = attn_map
                     else:
@@ -223,7 +227,11 @@ class Splign:
             if not self_guidance_mode:
                 spatial_loss = Splign.spatial_loss(centroids, relationship, loss_type,
                                                    loss_num, alpha=alpha, margin=margin,
-                                                   logger=logger, object_presence=object_presence)
+                                                   logger=logger, object_presence=object_presence, 
+                                                   leaky_relu_slope=leaky_relu_slope)
+                if use_energy:
+                    energy_loss = Splign.compute_loss(L2, energies[0], energies[1])
+                    spatial_loss = spatial_loss + energy_loss
                 
                 # MASKED MEAN
                 if masked_mean:
@@ -263,7 +271,8 @@ class Splign:
         return losses
 
     @staticmethod
-    def spatial_loss(centroids, relationship, loss_type, loss_num, alpha=1., margin=0.1, lambda_param=2, logger=None, object_presence=False):
+    def spatial_loss(centroids, relationship, loss_type, loss_num, alpha=1., margin=0.1,
+                     lambda_param=2, logger=None, object_presence=False, leaky_relu_slope = 0.05):
         obj1_center = centroids[0].squeeze()
         obj1_x = obj1_center[0]  # .item()
         obj1_y = obj1_center[1]  # .item()
@@ -282,26 +291,28 @@ class Splign:
             if relationship in ["to the left of", "on the left of", "left of", "near", "on side of"]:
                 if loss_type == "sigmoid":
                     difference_x = obj1_x - obj2_x
-                elif loss_type in ["relu", "squared_relu", "gelu"]:
+                elif loss_type in ["relu", "squared_relu", "gelu", "leaky_relu"]:
                     difference_x = obj2_x - obj1_x
 
             if relationship in ["to the right of", "on the right of", "right of", "next to"]:
                 if loss_type == "sigmoid":
                     difference_x = obj2_x - obj1_x
-                elif loss_type in ["relu", "squared_relu", "gelu"]:
+                elif loss_type in ["relu", "squared_relu", "gelu", "leaky_relu"]:
                     difference_x = obj1_x - obj2_x
                     # print("difference_x", difference_x)
 
             if loss_type == "sigmoid":
                 loss_horizontal = torch.sigmoid(alpha * difference_x)
             elif loss_type == "relu":
-                loss_horizontal = F.relu(margin - alpha * difference_x)
+                loss_horizontal = F.relu(alpha * (margin - difference_x))
+            elif loss_type == "leaky_relu":
+                loss_horizontal = F.leaky_relu(alpha * (margin - difference_x), negative_slope=leaky_relu_slope)
             elif loss_type == "squared_relu":
-                loss_horizontal = F.relu(margin - alpha * difference_x) ** 2
+                loss_horizontal = F.relu(alpha * (margin - difference_x)) ** 2
             elif loss_type == "gelu":
-                loss_horizontal = F.gelu(margin - alpha * difference_x)
+                loss_horizontal = F.gelu(alpha * (margin - difference_x))
 
-            object_presence = F.relu(torch.abs(difference_x) - max_margin)
+            object_presence_loss = F.relu(torch.abs(difference_x) - max_margin)
 
             if logger:
                 logger.info("difference_x: %s | difference_x (scaled): %s | loss_horizontal: %s", difference_x.item(),
@@ -325,25 +336,27 @@ class Splign:
             if relationship in ["above", "on the top of"]:
                 if loss_type == "sigmoid":
                     difference_y = obj1_y - obj2_y  # y increases downwards in the image
-                elif loss_type in ["relu", "squared_relu", "gelu"]:
+                elif loss_type in ["relu", "squared_relu", "gelu", "leaky_relu"]:
                     difference_y = obj2_y - obj1_y
 
             if relationship in ["below", "on the bottom of"]:
                 if loss_type == "sigmoid":
                     difference_y = obj2_y - obj1_y
-                elif loss_type in ["relu", "squared_relu", "gelu"]:
+                elif loss_type in ["relu", "squared_relu", "gelu", "leaky_relu"]:
                     difference_y = obj1_y - obj2_y
 
             if loss_type == "sigmoid":
                 loss_vertical = torch.sigmoid(alpha * difference_y)
             elif loss_type == "relu":
-                loss_vertical = F.relu(margin - alpha * difference_y)
+                loss_vertical = F.relu(alpha * (margin - difference_y))
+            elif loss_type == "leaky_relu":
+                loss_vertical = F.leaky_relu(alpha * (margin - difference_y), negative_slope=leaky_relu_slope)
             elif loss_type == "squared_relu":
-                loss_vertical = F.relu(margin - alpha * difference_y) ** 2
+                loss_vertical = F.relu(alpha * (margin - difference_y)) ** 2
             elif loss_type == "gelu":
-                loss_vertical = F.gelu(margin - alpha * difference_y)
+                loss_vertical = F.gelu(alpha * (margin - difference_y))
 
-            object_presence = F.relu(torch.abs(difference_y) - max_margin)
+            object_presence_loss = F.relu(torch.abs(difference_y) - max_margin)
 
             if logger:
                 logger.info("difference_y: %s | difference_y (scaled): %s | loss_vertical: %s", difference_y.item(),
@@ -362,5 +375,5 @@ class Splign:
             # loss = loss_vertical + lambda_param * loss_horizontal_1 # 4
             # loss = loss_vertical + lambda_param * loss_horizontal_2 # 5
         if object_presence:
-            loss = loss + object_presence
+            loss = loss + object_presence_loss
         return loss
