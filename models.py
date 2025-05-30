@@ -364,10 +364,6 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                         noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
-                    ### SELF GUIDANCE
-                    if logger is not None:
-                        logger.info(f"Timestep {i}")
-
                     if do_self_guidance and (sg_t_start <= i < sg_t_end or i + 1 in self_guidance_alternate_steps):
                         sg_aux = self.get_sg_aux(do_classifier_free_guidance)  # here it's extracting the cond term
                         spatial_losses = []
@@ -439,7 +435,6 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
                             clip_loss = clip_loss_obj1 + clip_loss_obj2
 
                             clip_grad = torch.autograd.grad(clip_loss, latent_in, retain_graph=True)[0]
-                            # print("clip_loss", clip_loss.item())
 
                         spatial_losses_batch = torch.stack(spatial_losses)
                         spatial_grad = torch.autograd.grad(spatial_losses_batch, latents,
@@ -725,10 +720,6 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                         noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
-                    # TODO: CLIP
-                    # pred_original_temp = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).pred_original_sample
-                    # rewards = self.compute_scores(pred_original_temp, prompt)
-
                     ### SELF GUIDANCE
                     if do_self_guidance and (sg_t_start <= i < sg_t_end or i + 1 in self_guidance_alternate_steps):
                         sg_aux = self.get_sg_aux(do_classifier_free_guidance)  # here it's extracting the cond term
@@ -749,17 +740,11 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
 
                                 for edit in edits:  # dict inside 'attn' & ('last_attn', 'last_feats')
                                     wt = edit.get('weight', 1.)
-                                    # print("wt: ", wt)
                                     alpha = edit.get('alpha', 1.)
-                                    # print("alpha: ", alpha)
                                     centorid_type = edit.get('centorid_type', None)
-                                    # print("centorid_type: ", centorid_type)
                                     function = edit.get('function', None)
-                                    # print("function: ", function)
                                     words = edit['words']
-                                    # print("words: ", words)
                                     relationship = edit.get('spatial', None)
-                                    # print("relationship: ", relationship)
                                     if wt:
                                         tgt = edit.get('tgt')
                                         if tgt is not None:
@@ -803,17 +788,13 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                             pred_original_sample = predict_x0_from_xt(self.scheduler, noise_pred, t, latent_in)
 
                             obj1, obj2 = clip_objects[0], clip_objects[1]
-                            # breakpoint()
 
                             clip_loss_obj1 = self.compute_gradient(scorer, obj1, pred_original_sample)
                             clip_loss_obj2 = self.compute_gradient(scorer, obj2, pred_original_sample)
                             clip_loss = clip_loss_obj1 + clip_loss_obj2
 
                             clip_grad = torch.autograd.grad(clip_loss, latent_in, retain_graph=True)[0]
-                            # print("sg_loss", sg_loss.item())
-                            # print("clip_loss", clip_loss.item())
 
-                        # breakpoint()
                         spatial_losses_batch = torch.stack(spatial_losses)
                         spatial_grad = torch.autograd.grad(spatial_losses_batch, latents,
                                                            grad_outputs=torch.ones_like(spatial_losses_batch),

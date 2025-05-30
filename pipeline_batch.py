@@ -6,11 +6,10 @@ import json
 import multiprocessing as mp
 
 from self_guide_batch import Splign
-from split_data_multiprocessing import split_prompts
+from split_data_multiprocessing import get_prompts_for_rank
 from models import SpatialLossSDPipeline, SpatialLossSDXLPipeline
 from utils.model_utils import set_attention_processors
 from utils.model_utils import get_model_id
-
 
 os.environ["HF_HOME"] = "/tudelft.net/staff-umbrella/StudentsCVlab/vchatalbasheva/Thesis-Splign/hf_cache"
 
@@ -19,6 +18,7 @@ def get_config():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="sdxl")
     parser.add_argument("--benchmark", default=None)
+    parser.add_argument("--use_mpi", default=False, action="store_true")
 
     parser.add_argument("--loss_num", default="1")
     parser.add_argument("--relationship", default="left")
@@ -37,13 +37,16 @@ def get_config():
     parser.add_argument("--json_filename", default=None)
     parser.add_argument("--centroid_type", default="sg")
     parser.add_argument("--batch_size", default=1)
+    parser.add_argument("--job_id", default=None)
+    parser.add_argument("--sweep", default=False, action="store_true")
+    
     parser.add_argument("--gaussian_smoothing", default=False)
     parser.add_argument("--masked_mean", default=False)
     parser.add_argument("--masked_mean_thresh", default=0)
     parser.add_argument("--masked_mean_weight", default=0)
 
     parser.add_argument("--num_inference_steps", default=1)
-    parser.add_argument("--sg_t_start", default=1)
+    parser.add_argument("--sg_t_start", default=0)
     parser.add_argument("--sg_t_end", default=1)
     parser.add_argument("--sg_grad_wt", default=1)
     parser.add_argument("--grad_norm_scale", default=False)
@@ -67,7 +70,38 @@ def get_config():
     parser.add_argument("--mode", default="client")
 
     args = parser.parse_args()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    if args.use_mpi:
+        from mpi4py import MPI
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        size = comm.Get_size()
+
+        node_name = MPI.Get_processor_name()
+
+        # Get the unique node names and assign a unique ID to each node
+        node_names = comm.allgather(node_name)
+        unique_nodes = list(set(node_names))
+        unique_nodes.sort()
+        print(node_name, node_names, unique_nodes)
+        node_id = unique_nodes.index(node_name)
+        print("Node id: ", node_id)
+    else:
+        rank = 0
+        size = 1
+
+
+    if torch.cuda.is_available():
+        num_gpus_per_node = torch.cuda.device_count()
+        device_id = rank % num_gpus_per_node
+        torch.cuda.set_device(device_id)
+        device = torch.device(f'cuda:{device_id}')
+        print("Rank: {}, Size: {}, Device: {}".format(rank, size, device))
+        args.rank = rank
+        args.world_size = size
+    else:
+        device = "cpu"
+
     args.device = device
     return args
 
@@ -97,24 +131,15 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                   grad_norm_scale=False, target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False, object_presence=False,
                   masked_mean_thresh=0.0, masked_mean_weight=0.0, write_to_file=False, use_energy=False, no_wt=False,
                   leaky_relu_slope=0.05):
-    # print("num_images_per_prompt", num_images_per_prompt)
-
     if benchmark is not None or do_multiprocessing:
-        save_path = os.path.join("images", save_dir_name) # , 'failures'
+        save_path = os.path.join("images", save_dir_name)
         os.makedirs(save_path, exist_ok=True)
     else:
         save_path = ""
 
-    # prompts = ["a cat to the left of a tv", "a cat to the right of a tv", "a cat above a tv", "a cat below a tv"]
     for batch_start in range(0, len(prompts), batch_size):
         batch_prompts = prompts[batch_start:batch_start + batch_size]
-        print("batch_prompts", batch_prompts)
-
-        # a couch above a kite
-        # a toaster below a zebra
-        # a potted plant above a clock
-        # if batch_prompts[0] !=  "a mouse below a stop sign": # "a frisbee to the left of a person": # "a traffic light to the left of a fire hydrant"
-        #     continue
+        # print("batch_prompts", batch_prompts)
 
         if benchmark == "visor":
             seed = seeds[0]
@@ -151,19 +176,17 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                     for prompt in batch_prompts:
                         if word_list[0] in prompt:
                             batched_words.append(word_list)
-            # batched_words = [['cat', 'tv']]
-            print("words: ", batched_words)
+            # print("words: ", batched_words)
 
-            if benchmark is not None or do_multiprocessing: # _spatial_{loss_type}_target_guidance_{sg_grad_wt}_works_10_steps
+            if benchmark is not None or do_multiprocessing:
                 filenames = [f"{prompt}_{i}.png" for prompt in batch_prompts]
-                print("filenames", filenames)
+                # print("filenames", filenames)
             else:
                 filenames = [f"{prompt}_{img_id}.png" for prompt in batch_prompts]
 
             out_filenames = [os.path.join(save_path, filename) for filename in filenames]
             existing_files = [os.path.exists(path) for path in out_filenames]
             files_to_generate = [not file_exists for file_exists in existing_files]
-            print(out_filenames)
 
             _, centroid_weight, _, _ = weight_combinations[0]
 
@@ -192,10 +215,9 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                 out = pipe(prompt=batch_prompts, generator=generators, num_inference_steps=num_inference_steps, save_aux=save_aux).images
                 base_filenames = [f"{prompt}_{model}_{i}.png" for prompt in batch_prompts]
                 base_out_filenames = [os.path.join(save_path, filename) for filename in base_filenames]
-                print("base_out_filenames", base_out_filenames)
                 for img, path in zip(out, base_out_filenames):
                     img.save(path)
-
+            
             print("SELF-GUIDANCE")
             if any(files_to_generate):
                 filtered_prompts = [p for p, should_gen in zip(batch_prompts, files_to_generate) if should_gen]
@@ -222,7 +244,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                         img.save(path)
 
 
-def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_inference_steps,
+def run_on_gpu(device, all_prompts, all_words, attn_greenlist, seeds, num_inference_steps,
                sg_t_start, sg_t_end, sg_grad_wt, sg_loss_rescale,
                L2_norm=False, shifts=[], num_images_per_prompt=1,
                vocab_spatial=[], loss_num=1, alpha=1, loss_type="relu", margin=0.1,
@@ -232,8 +254,6 @@ def run_on_gpu(gpu_id, all_prompts, all_words, attn_greenlist, seeds, num_infere
                target_guidance=3000.0, clip_weight=1.0, use_clip_loss=False, object_presence=False,
                masked_mean_thresh=0.0, masked_mean_weight=0.0, write_to_file=False, use_energy=False, no_wt=False,
                leaky_relu_slope=0.05):
-    torch.cuda.set_device(gpu_id)
-    device = torch.device(f"cuda:{gpu_id}")
 
     model_information = get_model_id(model)
     pipe = init_pipeline(device, model_information)
@@ -267,54 +287,44 @@ def start_multiprocessing(attn_greenlist, json_filename, seeds,
                           loss_num, alpha, loss_type, margin, self_guidance_mode,
                           two_objects, plot_centroid, weight_combinations,
                           do_multiprocessing, img_id, update_latents, benchmark,
-                          save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean,
-                          grad_norm_scale, target_guidance, clip_weight, use_clip_loss, object_presence,
-                          masked_mean_thresh, masked_mean_weight, write_to_file, use_energy, no_wt,
-                          leaky_relu_slope):
-    # MULTIPROCESSING
-    # SHELL
-    num_gpus = torch.cuda.device_count()
-    # print(f"Number of GPUs available: {num_gpus}")
+                          save_dir_name, centroid_type, batch_size, model, world_size, rank, device, 
+                          smoothing, masked_mean, grad_norm_scale, target_guidance, 
+                          clip_weight, use_clip_loss, object_presence, masked_mean_thresh, 
+                          masked_mean_weight, write_to_file, use_energy, no_wt, leaky_relu_slope):
+    
+    data_for_rank = get_prompts_for_rank(world_size, rank, json_filename)
 
-    # TODO: UNCOMMENT THIS FOR SIEGER
-    # Prepare data for multiprocessing
-    split_prompts(num_gpus, benchmark, json_filename)
-    prompts_folder = os.path.join('data_splits', f'{benchmark}', f"multiprocessing_{num_gpus}")
+    if benchmark == "visor":
+        if False:
+            prompts = [data['text'] for data in data_for_rank]
+            all_words = {data['text']: [data['obj_1_attributes'][0], data["obj_2_attributes"][0]] for data in data_for_rank}
+        else:
+            prompts, all_words = [], {}
+            for data in data_for_rank:
+                prompt = data['text']
+                prompts.append(prompt)
+                # all_words[prompt] = [data['obj_1_attributes'][0], data["obj_2_attributes"][0]]
 
-    mp.set_start_method('spawn')
-    processes = []
-    for gpu_id in range(num_gpus):
-        # print("THIS IS GPU", gpu_id)
+                all_words[prompt] = [
+                    data['obj_1_attributes'][0].split()[1] if len(data['obj_1_attributes'][0].split()) > 1 else data['obj_1_attributes'][0],
+                    data['obj_2_attributes'][0].split()[1] if len(data['obj_2_attributes'][0].split()) > 1 else data['obj_2_attributes'][0]
+                ]
+    if benchmark == "t2i":
+        prompts = [data['prompt'] for data in data_for_rank]
+        all_words = {data['prompt']: [data['objects'][0], data["objects"][1]] for data in data_for_rank}
+    if benchmark == "geneval":
+        pass
 
-        with open(os.path.join(prompts_folder, f'prompts_part_{gpu_id}.json'), 'r') as f:
-            all_data = json.load(f)
-
-        if benchmark == "visor":
-            prompts = [data['text'] for data in all_data]
-            all_words = {data['text']: [data['obj_1_attributes'][0], data["obj_2_attributes"][0]] for data in all_data}
-        if benchmark == "t2i" or benchmark == "geneval":
-            prompts = [data['prompt'] for data in all_data]
-            all_words = {data['prompt']: [data['objects'][0], data["objects"][1]] for data in all_data}
-        # if benchmark == "geneval":
-        #     prompts = list(all_data.keys())
-        #     all_words = all_data
-
-        p = mp.Process(target=run_on_gpu, args=(gpu_id, prompts, all_words, attn_greenlist, seeds,
-                                                num_inference_steps, sg_t_start, sg_t_end, sg_grad_wt, sg_loss_rescale,
-                                                L2_norm, shifts, num_images_per_prompt, vocab_spatial,
-                                                loss_num, alpha, loss_type, margin, self_guidance_mode,
-                                                two_objects, plot_centroid, weight_combinations,
-                                                do_multiprocessing, img_id, update_latents, save_dir_name,
-                                                centroid_type,
-                                                benchmark, batch_size, model, smoothing, masked_mean,
-                                                grad_norm_scale, target_guidance, clip_weight, use_clip_loss,
-                                                object_presence, masked_mean_thresh, masked_mean_weight, write_to_file,
-                                                use_energy, no_wt, leaky_relu_slope))
-        p.start()
-        processes.append(p)
-
-    for p in processes:
-        p.join()
+    run_on_gpu(device, prompts, all_words, attn_greenlist, seeds,
+               num_inference_steps, sg_t_start, sg_t_end, sg_grad_wt, sg_loss_rescale,
+               L2_norm, shifts, num_images_per_prompt, vocab_spatial,
+               loss_num, alpha, loss_type, margin, self_guidance_mode,
+               two_objects, plot_centroid, weight_combinations,
+               do_multiprocessing, img_id, update_latents, save_dir_name,
+               centroid_type, benchmark, batch_size, model, smoothing, masked_mean,
+               grad_norm_scale, target_guidance, clip_weight, use_clip_loss,
+               object_presence, masked_mean_thresh, masked_mean_weight, write_to_file,
+               use_energy, no_wt, leaky_relu_slope)
 
 
 def generate_images(config):
@@ -323,6 +333,9 @@ def generate_images(config):
     model = config.model
     model_information = get_model_id(model)
 
+    world_size = config.world_size
+    rank = config.rank
+    
     device = config.device
     L2_norm = config.L2_norm
     loss_num = config.loss_num
@@ -339,48 +352,26 @@ def generate_images(config):
     json_filename = config.json_filename
     centroid_type = config.centroid_type
     batch_size = int(config.batch_size)
+    job_id = config.job_id
+    num_inference_steps = int(config.num_inference_steps)
+    sg_t_start = int(config.sg_t_start)
+    sg_t_end = int(config.sg_t_end)
+    
     smoothing = bool(config.gaussian_smoothing)
     masked_mean = bool(config.masked_mean)
     masked_mean_thresh = float(config.masked_mean_thresh)
     masked_mean_weight = float(config.masked_mean_weight)
-    
-    print("masked_mean: ", masked_mean)
-    print("masked_mean_weight", masked_mean_weight)
-    print("masked_mean_thresh", masked_mean_thresh)
-    
     grad_norm_scale = bool(config.grad_norm_scale)
     target_guidance = float(config.target_guidance)
     clip_weight = float(config.clip_weight)
     use_clip_loss = bool(config.use_clip_loss)
     object_presence = bool(config.object_presence)
-    print("object_presence", object_presence)
-
+    
     write_to_file = bool(config.write_to_file)
     use_energy = bool(config.use_energy)
     no_wt = bool(config.no_wt)
-    print("WEIGHT=5 no_wt", no_wt)
     
     leaky_relu_slope = float(config.leaky_relu_slope)
-
-    # print("grad_norm_scale", grad_norm_scale)
-    # print("target_guidance", target_guidance)
-
-    # print("L2_norm: ", L2_norm)
-    # print("self_guidance_mode: ", self_guidance_mode)
-    # print("two_objects: ", two_objects)
-    print("loss_type: ", loss_type)
-    print("loss_num: ", loss_num)
-    print("margin: ", margin)
-    print("alpha: ", alpha)
-    # print("plot_centroid: ", plot_centroid)
-    # print("do_multiprocessing: ", do_multiprocessing)
-    # print("update_latents: ", update_latents)
-    # print("img_id: ", img_id)
-    # print("benchmark: ", benchmark)
-    # print("json_filename: ", json_filename)
-    # print("centroid_type: ", centroid_type)
-    # print("batch_size: ", batch_size)
-    # print("smoothing: ", smoothing)
 
     if benchmark == "t2i":
         with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
@@ -411,7 +402,7 @@ def generate_images(config):
             visor_data = json.load(f)
 
         all_prompts, all_words = [], {}
-        for data in visor_data: # [:10]
+        for data in visor_data:
             prompt = data['text']
             all_prompts.append(prompt)
             # all_words[prompt] = [data['obj_1_attributes'][0], data["obj_2_attributes"][0]]
@@ -421,7 +412,6 @@ def generate_images(config):
                 data['obj_2_attributes'][0].split()[1] if len(data['obj_2_attributes'][0].split()) > 1 else data['obj_2_attributes'][0]
             ]
 
-        print("len all_prompts", len(all_prompts))
         seeds = [42]
         vocab_spatial = ["to the left of", "to the right of", "above", "below"]
         num_images_per_prompt = int(config.num_images_per_prompt)
@@ -445,10 +435,8 @@ def generate_images(config):
                 data['objects'][0].split()[1] if len(data['objects'][0].split()) > 1 else data['objects'][0],
                 data["objects"][1].split()[1] if len(data["objects"][1].split()) > 1 else data["objects"][1]
             ]
-
         num_images_per_prompt = 4
         seeds = list(range(42, 42 + num_images_per_prompt))
-        print("seeds: ", seeds)
         vocab_spatial = ['above', 'below', 'left of', 'right of']
         shifts = {
             "left of": [(0., 0.5), (1., 0.5)],
@@ -457,7 +445,10 @@ def generate_images(config):
             "below": [(0.5, 1), (0.5, 0)]
         }
 
-    save_dir_name = os.path.join(benchmark, f"{model}_{img_id}")
+    if benchmark is not None:
+        save_dir_name = os.path.join(benchmark, f"{model}_{img_id}")
+    if job_id:
+        save_dir_name += f"_{job_id}"
     print("save_dir_name", save_dir_name)
 
     if model == "sdxl":
@@ -467,7 +458,7 @@ def generate_images(config):
             "up_blocks.0.attentions.1.transformer_blocks.3.attn2",
         ]
     else:
-        # SD 1.4 and SD 2.1 have the same architecture => same up_blocks
+        # SD 1.5 and SD 2.1 have the same architecture => same up_blocks
         attn_greenlist = [
             "up_blocks.1.attentions.0.transformer_blocks.0.attn2",
             "up_blocks.1.attentions.1.transformer_blocks.0.attn2",
@@ -483,25 +474,6 @@ def generate_images(config):
         attn_greenlist = attn_greenlist[:num_attn_layers]
         print("num_attn_layers", num_attn_layers)
 
-        # cross_attn_layers_sd1.4 = [
-        #     # "down_blocks.0.attentions.0.transformer_blocks.0.attn2",
-        #     # "down_blocks.0.attentions.1.transformer_blocks.0.attn2",
-        #     # "down_blocks.1.attentions.0.transformer_blocks.0.attn2",
-        #     # "down_blocks.1.attentions.1.transformer_blocks.0.attn2",
-        #     # "down_blocks.2.attentions.0.transformer_blocks.0.attn2",
-        #     # "down_blocks.2.attentions.1.transformer_blocks.0.attn2",
-        #     # "mid_block.attentions.0.transformer_blocks.0.attn2",
-        #     "up_blocks.1.attentions.0.transformer_blocks.0.attn2",
-        #     "up_blocks.1.attentions.1.transformer_blocks.0.attn2",
-        #     "up_blocks.1.attentions.2.transformer_blocks.0.attn2",
-        #     # "up_blocks.2.attentions.0.transformer_blocks.0.attn2",
-        #     # "up_blocks.2.attentions.1.transformer_blocks.0.attn2",
-        #     # "up_blocks.2.attentions.2.transformer_blocks.0.attn2",
-        #     # "up_blocks.3.attentions.0.transformer_blocks.0.attn2",
-        #     # "up_blocks.3.attentions.1.transformer_blocks.0.attn2",
-        #     # "up_blocks.3.attentions.2.transformer_blocks.0.attn2"
-        # ]
-
     if update_latents:
         sg_grad_wt = 7.5
         weight_combinations = [(0, 100.0, 0, 0)]
@@ -510,12 +482,12 @@ def generate_images(config):
         weight_combinations = [(0, 5.0, 0, 0)]
 
     sg_loss_rescale = 1000.  # to avoid numerical underflow, scale loss by this amount and then divide gradients after backprop
-    sg_t_start = 0
-
+    # sg_t_start = 0
+    
     if self_guidance_mode:
         num_inference_steps = 64
         sg_t_end = 3 * num_inference_steps // 16
-
+    
     if model == "sdxl":
         num_inference_steps = int(config.num_inference_steps) # 50
         sg_t_end = int(config.sg_t_end) # 12
@@ -523,19 +495,9 @@ def generate_images(config):
     if model == "sd1.4" or model == "sd1.5" or model == "sd2.1" or model == "spright":
         num_inference_steps = 500
         sg_t_end = 125
-
-    # sg_grad_wt = int(config.sg_grad_wt)
-    print("sg_grad_wt", sg_grad_wt)
-
+    print("num_inference_steps", num_inference_steps)
+    
     relationship = None
-
-    # num_inference_steps = int(config.num_inference_steps)
-    # sg_t_start = int(config.sg_t_start)
-    # sg_t_end = int(config.sg_t_end)
-    #
-    # print("num_inference_steps", num_inference_steps)
-    # print("sg_t_start", sg_t_start)
-    # print("sg_t_end", sg_t_end)
 
     if do_multiprocessing:
         start_multiprocessing(
@@ -545,19 +507,16 @@ def generate_images(config):
             loss_num, alpha, loss_type, margin, self_guidance_mode,
             two_objects, plot_centroid, weight_combinations,
             do_multiprocessing, img_id, update_latents, benchmark,
-            save_dir_name, centroid_type, batch_size, model, smoothing, masked_mean,
-            grad_norm_scale, target_guidance, clip_weight, use_clip_loss, object_presence,
-            masked_mean_thresh, masked_mean_weight, write_to_file, use_energy, no_wt, leaky_relu_slope)
+            save_dir_name, centroid_type, batch_size, model, world_size, rank, device,
+            smoothing, masked_mean, grad_norm_scale, target_guidance, 
+            clip_weight, use_clip_loss, object_presence, masked_mean_thresh, 
+            masked_mean_weight, write_to_file, use_energy, no_wt, leaky_relu_slope)
 
     else:
-        print(device)
         pipe = init_pipeline(device, model_information)
 
         save_aux = False  # True
         set_attention_processors(pipe, attn_greenlist, save_aux=save_aux)
-
-        print("Configuration: sg_start =", sg_t_start, "sg_end =", sg_t_end, "num_inference_steps =", num_inference_steps,
-              "grad_norm_scale", grad_norm_scale, "target_guidance", target_guidance)
 
         run_base = False
         self_guidance(pipe, device, attn_greenlist, all_prompts, all_words, seeds, num_inference_steps, sg_t_start,
@@ -577,27 +536,35 @@ def generate_images(config):
                       leaky_relu_slope=leaky_relu_slope)
 
 
-def run_sweep_experiments(config):
-    # for model in ["sd1.4", "sd2.1"]: # "sd1.5", "sdxl", "spright"
-    # config.model = model
-    for loss in ["relu", "gelu", "sigmoid"]:
-        config.loss_type = loss
-        # for margin in [0.1, 0.25, 0.5]:
-        margin = 0.25
-        config.margin = margin
+def sweep(config):
+    for model in ["sdxl"]: # "sd1.5", "sdxl", "spright"
+        config.model = model
+        for loss in ["gelu"]: #["relu", "squared_relu", "gelu", "sigmoid"]
+            config.loss_type = loss
+            for margin in [0.25]: #[0.1, 0.25, 0.5]
+                config.margin = margin
+                # # more experiments
+                # for loss_num in [2, 3]: # 1 is the default so that is done
+                #     config.loss_num = loss_num
+                for centroid_type in ["mean"]: # USE ONLY MEAN
+                    config.centroid_type = centroid_type
 
-        centroid_type = "mean"
-        config.centroid_type = centroid_type
+                    img_id = f"{loss}_m={margin}_centr_{centroid_type}"
+                    config.img_id = img_id
 
-        clip_weight = config.clip_weight
-        loss = config.loss_type
+                    # benchmark = config.benchmark
+                    # base_pattern = f"{model}_{img_id}"
+                    # parent_dir = os.path.join("images", benchmark)
+                    # if os.path.exists(parent_dir):
+                    #     existing_dirs = [d for d in os.listdir(parent_dir) if
+                    #                      os.path.isdir(os.path.join(parent_dir, d))]
+                    #     if any(d.startswith(base_pattern) for d in existing_dirs):
+                    #         print(f"Directory {base_pattern} already exists, skipping...")
+                    #         continue
 
-        img_id = f"{loss}_m={margin}_centr_{centroid_type}"  # _clip_wt_{clip_weight}"
-        config.img_id = img_id
-
-        generate_images(config)
-
-
+                    generate_images(config)
+                    
+                    
 def run_ablation_spatial_loss_intervention(config):
     # sg_t_start_list = [0, 5, 10, 25, 50]
     # sp_loss_range_list = [25, 50] # for how many steps we apply the spatial loss
@@ -707,8 +674,10 @@ def run_ablation_leaky_relu_attn_maps(config):
 
 
 if __name__ == "__main__":
+    # Single experiment
     config = get_config()
-    generate_images(config)
+    if config.sweep:
+        sweep(config)
+    else:
+        generate_images(config)
 
-    # run_ablation_spatial_loss_intervention(config)
-    # run_sweep_experiments(config)

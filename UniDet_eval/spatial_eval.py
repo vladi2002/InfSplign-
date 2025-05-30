@@ -118,7 +118,7 @@ def t2i_spatial_score(config, relationship=None):
             dataset=dataset,
             batch_size=batch_size,
             shuffle=False,
-            # num_workers=4, ### MAYBE THIS IS AN ISSUE FOR THE DEADLOCK WARNING
+            num_workers=32, ### MAYBE THIS IS AN ISSUE FOR THE DEADLOCK WARNING
             pin_memory=True,
             collate_fn=collate_fn,
         )

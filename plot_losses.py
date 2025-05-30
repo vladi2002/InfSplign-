@@ -56,7 +56,7 @@ def plot_diffusion_statistics(log_file_path, loss, prompt):
     fig.suptitle(f"Prompt: {prompt}", fontsize=16)
 
     plt.tight_layout()
-    save_dir = "logs_imgs"
+    save_dir = "logs/logs_imgs"
     os.makedirs(save_dir, exist_ok=True)
     fig_name = os.path.join(save_dir, os.path.basename(log_file_path).split(".log")[0] + ".png")
     # print(fig_name)
@@ -142,14 +142,14 @@ def generate_plots_loss_grad(visor_prompts):
 def merge_plots(visor_prompts):
     model = "sd2.1"
 
-    combined_dir = os.path.join("combine_losses_analysis")
+    combined_dir = os.path.join("logs/combine_losses_analysis")
     os.makedirs(combined_dir, exist_ok=True)
 
     for prompt in visor_prompts:
         images = []
 
         for loss in ["relu", "gelu", "sigmoid"]:
-            filename = os.path.join("logs_imgs", f"{model}_{loss}_spatial_loss_behaviour_{prompt}.png")
+            filename = os.path.join("logs/logs_imgs", f"{model}_{loss}_spatial_loss_behaviour_{prompt}.png")
 
             if os.path.exists(filename):
                 images.append(Image.open(filename))
@@ -235,7 +235,7 @@ def get_logs_statistics():
 
 
 def print_summary_statistics():
-    summary_df = pd.read_csv("spatial_loss_averaged_over_layers_summary.csv")
+    summary_df = pd.read_csv("logs/spatial_loss_averaged_over_layers_summary.csv")
 
     loss_stats = summary_df.groupby("loss_type").agg({
         "initial_loss": ["mean", "std"],
@@ -251,7 +251,7 @@ def print_summary_statistics():
     ordered_loss_types = ["relu", "gelu", "sigmoid"]
     loss_stats = loss_stats.reindex(ordered_loss_types).reset_index()
 
-    output_path = "spatial_loss_averaged_over_layers_summary_statistics.csv"
+    output_path = "logs/spatial_loss_averaged_over_layers_summary_statistics.csv"
     loss_stats.to_csv(output_path, index=False)
 
 
@@ -270,14 +270,14 @@ def get_logs_statistics_attn_layer(loss_types):
     spike_threshold = 2.0
 
     for loss in loss_types:
-        for file in os.listdir("logs_attn"):
+        for file in os.listdir("logs/logs_attn"):
             if not file.endswith(".log") or f"{model}_spatial_loss_behaviour_attn_{loss}_" not in file:
                 continue
 
             full_prefix = f"{model}_spatial_loss_behaviour_attn_{loss}_"
             prompt = file[len(full_prefix):-4]
 
-            filepath = os.path.join("logs_attn", file)
+            filepath = os.path.join("logs/logs_attn", file)
             with open(filepath, "r") as f:
                 log_data = f.read()
 
@@ -377,17 +377,17 @@ def get_logs_statistics_attn_layer(loss_types):
                     })
 
     summary_df = pd.DataFrame(summary_data)
-    output_path = "spatial_loss_attn_blocks_summary.csv"
+    output_path = "logs/spatial_loss_attn_blocks_summary.csv"
     summary_df.to_csv(output_path, index=False)
 
     timestep_df = pd.DataFrame(timestep_data)
-    timestep_output_path = "spatial_loss_attn_blocks_timesteps.csv"
+    timestep_output_path = "logs/spatial_loss_attn_blocks_timesteps.csv"
     timestep_df.to_csv(timestep_output_path, index=False)
     print(f"Saved detailed timestep data to {timestep_output_path}")
 
 
 def plot_attn_layer_losses(prompt=None, loss_type=None, top_n=None):
-    timestep_df = pd.read_csv("spatial_loss_attn_blocks_timesteps.csv")
+    timestep_df = pd.read_csv("logs/spatial_loss_attn_blocks_timesteps.csv")
 
     layer_data = timestep_df[timestep_df["block"] != "overall_gradients"]
 
@@ -455,7 +455,7 @@ def plot_attn_layer_losses(prompt=None, loss_type=None, top_n=None):
     plt.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=2)
     plt.tight_layout()
 
-    save_dir = "loss_attn_layers_plots"
+    save_dir = "logs/loss_attn_layers_plots"
     os.makedirs(save_dir, exist_ok=True)
     clean_prompt = ''.join(c if c.isalnum() or c.isspace() else '_' for c in prompt)
     top_n_str = f"_top{top_n}" if top_n else ""
@@ -464,7 +464,7 @@ def plot_attn_layer_losses(prompt=None, loss_type=None, top_n=None):
     print(f"Saved plot to {filename}")
     # plt.show()
 
-    data_dir = "loss_attn_layers_data"
+    data_dir = "logs/loss_attn_layers_data"
     os.makedirs(data_dir, exist_ok=True)
     csv_filename = os.path.join(data_dir, f"{loss_type}_{clean_prompt}.csv")
 
@@ -560,7 +560,7 @@ def analyze_layer_effectiveness(consolidated_file):
 
 
 def create_consolidated_file(loss_types, visor_prompts):
-    filename = "combined_ablation_results.csv"
+    filename = "logs/combined_ablation_results.csv"
     if os.path.exists(filename):
         print(f"Consolidated file already exists: {filename}")
         return filename
@@ -571,7 +571,7 @@ def create_consolidated_file(loss_types, visor_prompts):
 
         for loss in loss_types:
             file_name = f"{loss}_{prompt}.csv"
-            file_path = os.path.join("loss_attn_layers_data", file_name)
+            file_path = os.path.join("logs/loss_attn_layers_data", file_name)
 
             if os.path.exists(file_path):
                 df = pd.read_csv(file_path)
