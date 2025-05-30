@@ -1,7 +1,7 @@
 import os
 import json
 
-from combined_pipeline_multiprocessing import get_config
+from pipeline_batch import get_config
 from utils.visor_utils import evaluate, show_visor_results
 from utils.pipeline_utils import load_object_detection_ann, \
     initialize_object_detection_model, create_object_detection_annotations
@@ -44,24 +44,34 @@ def run_t2i_evaluation(config, relationship=None):
 
 def run_t2i_evaluation_sweep(config, relationship=None):
     # t2i_spatial_score(config, relationship=relationship)
-    for loss in ["relu", "gelu", "sigmoid"]:
-        margin = 0.25
-        img_id = f"{loss}_m={margin}_centr_mean"
+    for loss in ["gelu", "sigmoid"]:
+        img_id = f"sdxl_sp_loss_{loss}_end_125_num_steps_500"
         config.img_id = img_id
         t2i_spatial_score(config, relationship=relationship)
         
 # TODO: changed based on the naming conventions of the current runs
-def run_visor_evaluation_sweep(config, relationship=None):       
-    for loss in ["relu", "gelu", "sigmoid"]:
+def run_visor_evaluation_sweep(config, relationship=None):     
+    loss_config = config.loss_type
+    if loss_config == "relu":
+        for loss in ["relu", "gelu"]:
+            for loss_num in [1, 2, 3]:
+                for alpha in [0.25, 0.5, 1.0, 2.0]:
+                    # for slope in [0.05, 0.1, 0.25, 0.5]:
+                    if True:
+                        no_wt = "_no_wt"
+                    else:
+                        no_wt = ""
+                    img_id = f"loss_{loss}_loss_num_{loss_num}_alpha_{alpha}_6_attn_maps{no_wt}_ablation_132"
+                    config.img_id = img_id
+                    run_visor_evaluation(config, relationship=relationship)
+    if loss_config == "sigmoid":
         for loss_num in [1, 2, 3]:
             for alpha in [1.0, 2.0, 5.0]:
-                if alpha == 1.0 and loss_num == 1: # for the 9 attn maps ablation with no wt
-                    continue
                 if True:
                     no_wt = "_no_wt"
                 else:
                     no_wt = ""
-                img_id = f"loss_{loss}_loss_num_{loss_num}_alpha_{alpha}_9_attn_maps{no_wt}_ablation_132"
+                img_id = f"loss_{loss_config}_loss_num_{loss_num}_alpha_{alpha}_6_attn_maps{no_wt}_ablation_132"
                 config.img_id = img_id
                 run_visor_evaluation(config, relationship=relationship)
 

@@ -170,7 +170,9 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
             masked_mean_weight=None,
             write_to_file=False,
             save_dir_name="save_dir",
-            use_energy=False
+            use_energy=False,
+            no_wt=False,
+            leaky_relu_slope=0.05
     ):
         # 0. Default height and width to unet
         height = height or self.default_sample_size * self.vae_scale_factor
@@ -413,13 +415,15 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
                                                                 centroid_type=centorid_type,
                                                                 img_id=img_id, smoothing=smoothing,
                                                                 masked_mean=masked_mean, object_presence=object_presence,
-                                                                masked_mean_thresh=masked_mean_thresh, masked_mean_weight=masked_mean_weight)
+                                                                masked_mean_thresh=masked_mean_thresh, masked_mean_weight=masked_mean_weight,
+                                                                use_energy=use_energy, leaky_relu_slope=leaky_relu_slope)
                                             lst1.extend(result)
 
                                         edit_loss1 = torch.stack(lst1).mean()
-                                        if logger is not None:
-                                            logger.info(f"{function}: {edit_loss1.item()}")
-                                        spatial_loss_b += wt * edit_loss1
+                                        if no_wt:
+                                            spatial_loss_b += edit_loss1
+                                        else:
+                                            spatial_loss_b += wt *  edit_loss1
 
                                 # right now there is just one edit dictionary!!!
                             spatial_losses.append(spatial_loss_b)

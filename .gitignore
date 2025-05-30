@@ -13,3 +13,4 @@ logs
 
 sbatch_files
 *.out
+*.csv
