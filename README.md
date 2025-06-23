@@ -59,7 +59,7 @@ def __init__(self, src_rect, output_size, interp=Image.BILINEAR, fill=0): -> ins
 The requirements for this benchmark were incompatible with the dependencies in the code so you have a make a new environment for it. Following these steps should work:
 
 ```
-conda create -n geneval python 3.8.10
+conda create -n geneval python=3.8.10
 git clone https://github.com/djghosh13/geneval.git
 cd geneval
 ./evaluation/download_models.sh geneval_obj_det/
