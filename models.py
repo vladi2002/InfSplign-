@@ -11,6 +11,7 @@ from diffusers.schedulers.scheduling_ddpm import DDPMSchedulerOutput
 
 from clip_model import ClipTextScorer
 from utils.model_utils import search_sequence_numpy, setup_logger
+from torchvision.utils import save_image
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -172,7 +173,8 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
             save_dir_name="save_dir",
             use_energy=False,
             no_wt=False,
-            leaky_relu_slope=0.05
+            leaky_relu_slope=0.05,
+            img_num=0
     ):
         # 0. Default height and width to unet
         height = height or self.default_sample_size * self.vae_scale_factor
@@ -363,7 +365,7 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
                     if do_classifier_free_guidance:
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                         noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
-
+                    
                     if do_self_guidance and (sg_t_start <= i < sg_t_end or i + 1 in self_guidance_alternate_steps):
                         sg_aux = self.get_sg_aux(do_classifier_free_guidance)  # here it's extracting the cond term
                         spatial_losses = []
@@ -412,7 +414,7 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
                                                                 img_id=img_id, smoothing=smoothing,
                                                                 masked_mean=masked_mean, object_presence=object_presence,
                                                                 masked_mean_thresh=masked_mean_thresh, masked_mean_weight=masked_mean_weight,
-                                                                use_energy=use_energy, leaky_relu_slope=leaky_relu_slope)
+                                                                use_energy=use_energy, leaky_relu_slope=leaky_relu_slope, img_num=img_num)
                                             lst1.extend(result)
 
                                         edit_loss1 = torch.stack(lst1).mean()

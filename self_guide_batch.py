@@ -149,7 +149,7 @@ class Splign:
                  cluster_objects=False, prompt=None, relationship="other",
                  alpha=1, margin=0.5, logger=None, self_guidance_mode=False, plot_centroid=False,
                  two_objects=False, centroid_type="sg", img_id=None, smoothing=False, masked_mean=False, object_presence=False,
-                 masked_mean_thresh=0.1, masked_mean_weight=0.5, use_energy=False, leaky_relu_slope=0.05):
+                 masked_mean_thresh=0.1, masked_mean_weight=0.5, use_energy=False, leaky_relu_slope=0.05, img_num=0):
         # print("attn len: ", len(attn))
         timestep = i
         attn = attn[i]
@@ -213,10 +213,10 @@ class Splign:
 
                 if plot_centroid:
                     plot_attention_map(combined_attn_map, timestep + 1, module_name,
-                                       centroid=obs_centroid, object=objects[i],
+                                       object=objects[i], # centroid=obs_centroid, 
                                        loss_type=loss_type, loss_num=loss_num,
                                        prompt=prompt, margin=margin, alpha=alpha,
-                                       attn_folder="attention_maps", img_id=img_id)
+                                       attn_folder="attention_maps", img_id=img_id, img_num=img_num)
 
                 if self_guidance_mode:
                     shift = torch.tensor(shifts[i]).to(attn.device)
@@ -355,7 +355,7 @@ class Splign:
                 loss_vertical = F.relu(alpha * (margin - difference_y)) ** 2
             elif loss_type == "gelu":
                 loss_vertical = F.gelu(alpha * (margin - difference_y))
-
+            
             object_presence_loss = F.relu(torch.abs(difference_y) - max_margin)
 
             if logger:
