@@ -107,6 +107,7 @@ def create_object_detection_annotations(config, prompts_data, processor, model, 
                 
             # not all images are generated yet !!!!!!!!!
             if not os.path.exists(impath):
+                print("Could not find {}".format(impath))
                 continue
 
             im = Image.open(impath)

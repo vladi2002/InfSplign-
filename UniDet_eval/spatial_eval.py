@@ -255,6 +255,8 @@ def t2i_spatial_score(config, relationship=None):
                         box2["y_min"] = obj2_bb[1]
                         box2["x_max"] = obj2_bb[2]
                         box2["y_max"] = obj2_bb[3]
+                        #print(obj1_bb)
+                        #print(obj2_bb)
 
                         score = 0.25 * instance_score[obj1_pos].item() + 0.25 * instance_score[obj2_pos].item()  # score = avg across two objects score
                         position_score = determine_position(locality, box1, box2)

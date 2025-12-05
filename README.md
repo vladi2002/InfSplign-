@@ -6,7 +6,7 @@
 
 Clone this repo to your local machine using
 ```
-https://github.com/VioletaChatalbasheva/Thesis-Splign.git
+git clone https://github.com/SarahRastegar/InfSplign_Energy.git
 ```
 
 #### Create Virtual Environment (venv)
@@ -16,6 +16,13 @@ conda create -n <env_name> python=3.11
 conda activate <env_name>
 ```
 
+or 
+
+```
+conda env create -f environment.yml
+```
+
+
 #### Install Dependencies Main Code
 ```
 conda install pytorch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 pytorch-cuda=12.4 -c pytorch -c nvidia
@@ -24,6 +31,23 @@ conda install -c conda-forge einops
 conda install -c conda-forge accelerate
 conda install -c conda-forge scikit-learn
 ```
+
+#### Install Dependencies CLIP
+```
+pip install git+https://github.com/openai/CLIP.git
+
+```
+
+
+
+##### Example command for the visor benchmark:
+```
+python pipeline_batch.py  --benchmark visor --model sd1.4 --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1 --img_id relu_mean --centroid_type mean  --batch_size 1 --gaussian_smoothing true --json_filename visor_ablation_500
+
+```
+
+
+
 
 #### Install Dependencies for Evaluation Benchmarks
 
@@ -59,7 +83,7 @@ def __init__(self, src_rect, output_size, interp=Image.BILINEAR, fill=0): -> ins
 The requirements for this benchmark were incompatible with the dependencies in the code so you have a make a new environment for it. Following these steps should work:
 
 ```
-conda create -n geneval python=3.8.10
+conda create -n geneval python 3.8.10
 git clone https://github.com/djghosh13/geneval.git
 cd geneval
 ./evaluation/download_models.sh geneval_obj_det/
@@ -102,7 +126,8 @@ The corresponding data files are:
 
 ##### Example command for the visor benchmark:
 ```
-python combined_pipeline_multiprocessing.py --benchmark visor --json_filename text_spatial_rel_phrases --model sdxl --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1.0 --img_id relu
+python pipeline_batch.py  --benchmark visor --model sd1.4 --two_objects True --loss_type relu --loss_num 1 --margin 0.1 --alpha 1 --img_id relu_mean --centroid_type mean  --batch_size 1 --gaussian_smoothing true --json_filename visor_ablation_500
+
 ```
 
 ##### Example command for the t2i benchmark:
@@ -111,5 +136,11 @@ python combined_pipeline_multiprocessing.py --do_multiprocessing True --benchmar
 ```
 
 To ensure multiprocessing with multiple GPUs, you can add to the command `--do_multiprocessing True`
+
+##### Fix the import clip problem:
+```
+pip uninstall clip
+pip install git+https://github.com/openai/CLIP.git
+```
 
 ##### GenEval is still to be setup

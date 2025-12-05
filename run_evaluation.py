@@ -21,12 +21,13 @@ def run_visor_evaluation(config, relationship=None):
     json_filename = config.json_filename
     img_id = config.img_id
     model_name = f"{model}_{img_id}"
+    print(f"Evaluating {model_name}")
 
     with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
         prompts_data = json.load(f)
 
     obj_det_ann_path = os.path.join('objdet_results', 'visor', model_name, f'{json_filename}.json')
-    print(f"obj_det_ann_path: {obj_det_ann_path}")
+    if config.verbose: print(f"obj_det_ann_path: {obj_det_ann_path}")
     if not os.path.isfile(obj_det_ann_path):
         processor, obj_det_model = initialize_object_detection_model(config)
         create_object_detection_annotations(config, prompts_data, processor, obj_det_model, relationship=relationship)
@@ -78,5 +79,6 @@ def run_visor_evaluation_sweep(config, relationship=None):
 
 if __name__ == "__main__":
     config = get_config()
-    # run_evaluation(config, relationship=None)
-    run_visor_evaluation_sweep(config, relationship=None)
+    print(f"Running evaluation for {config.img_id}")
+    run_evaluation(config, relationship=None)
+    # run_visor_evaluation_sweep(config, relationship=None)

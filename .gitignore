@@ -4,9 +4,12 @@ __pycache__/
 images
 objdet_results
 UniDet_eval/experts/expert_weights/*
+plots
 
+sbatch_files
 data_splits
 attention_maps
+results
 
 hf_cache
 logs
@@ -14,3 +17,6 @@ logs
 sbatch_files
 *.out
 *.csv
+
+
+/outputs

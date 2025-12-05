@@ -3,10 +3,39 @@
 
 # Wrapper script to submit sbatch jobs with different parameters
 
-for num_inference_steps in 500 1000; do
-    for sg_t_start in 0 25 50 100; do
-        sg_t_end=$((sg_t_start + num_inference_steps / 2))
-        echo "Submitting with num_inference_steps=$num_inference_steps, sg_t_start=$sg_t_start, sg_t_end=$sg_t_end"
-        sbatch --export=NUM_INFERENCE_STEPS=$num_inference_steps,SG_T_START=$sg_t_start,SG_T_END=$sg_t_end sieger_visor.sbatch
+
+
+for model in sd1.4 sd2.1; do
+    for alpha in 1.5; do
+        for margin in 0.25; do
+            for lambda_spatial in 0.5; do
+                for lambda_presence in 1.0; do
+                    for lambda_balance in 1.0; do
+                        for loss in sigmoid relu gelu leaky_relu linear; do
+                            img_id="visor_full_alpha_${alpha}_margin_${margin}_lspatial${lambda_spatial}_lpresence${lambda_presence}_lbalance${lambda_balance}_loss_${loss}"
+                            echo "Submitting with model=$model, $img_id"
+                            sbatch --export=ALL,MODEL=$model,MARGIN=$margin,ALPHA=$alpha,LAMBDA_SPATIAL=$lambda_spatial,LAMBDA_PRESENCE=$lambda_presence,LAMBDA_BALANCE=$lambda_balance,IMG_ID=$img_id,LOSS=$loss sieger_visor.sbatch
+                        done
+                    done
+                done
+            done
+        done
     done
 done
+
+
+# for model in sdxl; do
+#     for alpha in 1.5; do
+#         for margin in 0.5; do
+#             for lambda_spatial in 0 0.5; do
+#                 for lambda_presence in 0 1.0; do
+#                     for lambda_balance in 0 1.0; do
+#                         img_id="visor_full_alpha_${alpha}_margin_${margin}_lspatial${lambda_spatial}_lpresence${lambda_presence}_lbalance${lambda_balance}"
+#                         echo "Submitting with model=$model, $img_id"
+#                         sbatch --export=ALL,MODEL=$model,MARGIN=$margin,ALPHA=$alpha,LAMBDA_SPATIAL=$lambda_spatial,LAMBDA_PRESENCE=$lambda_presence,LAMBDA_BALANCE=$lambda_balance,IMG_ID=$img_id sieger_eval.sbatch
+#                     done
+#                 done
+#             done
+#         done
+#     done
+# done

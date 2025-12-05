@@ -166,7 +166,7 @@ def plot_attention_map(edit, timestep, block, centroid=None, object="",
     edit_img = prepare_attention_map(edit)
 
     # save_dir = os.path.join(loss_type, "attention_maps")
-    save_dir = os.path.join("attention_maps", img_id, f"{prompt}_sd1.4_{loss_type}")
+    save_dir = os.path.join("attention_maps", img_id, f"{prompt}_sd1.4_{loss_type}",f"{object}",f"{block}")
     os.makedirs(save_dir, exist_ok=True)
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 10))
@@ -184,7 +184,7 @@ def plot_attention_map(edit, timestep, block, centroid=None, object="",
         x_pixel = x_norm * width
         y_pixel = y_norm * height
 
-        ax.scatter(x_pixel, y_pixel, s=100, c='red', marker='x', label='Centroid')
+        ax.scatter(x_pixel, y_pixel, s=300, c='red', marker='x', label='Centroid')
         ax.legend()
 
     # title = f"{prompt}, t={timestep}, object={object}\n{loss_type} loss={loss_num} margin={margin} alpha={alpha}\n{block}"

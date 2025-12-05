@@ -149,7 +149,7 @@ def evaluate(obj_det_ann, prompts_data, model): # t2i_score
 
     visor_table_data = [
         model,
-        f'{objacc[2]:.3f}', f'{visor_cond:.3f}', f'{0.01 * (visor_uncond):.3f}',
+        f'{objacc[2]:.3f}', f'{0.01 * (visor_uncond):.3f}', f'{visor_cond:.3f}',
         f'{visor_n[0]:.3f}', f'{visor_n[1]:.3f}', f'{visor_n[2]:.3f}', f'{visor_n[3]:.3f}',
         str(len(obj_det_ann)) # f'{t2i_score:.3f}'
     ]
@@ -162,7 +162,7 @@ def show_visor_results(visor_table, config):
             visor_table,
             headers=[
                 'Model',
-                'OA', 'VISOR_cond', 'VISOR_uncond',
+                'OA', 'VISOR_uncond', 'VISOR_cond',
                 'VISOR_1', 'VISOR_2', 'VISOR_3', 'VISOR_4',
                 'Num_Imgs'
             ] # 'T2I-Comp-Bench (spatial)', 

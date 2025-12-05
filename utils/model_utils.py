@@ -43,6 +43,10 @@ def get_model_id(model):
         model_id = "stabilityai/stable-diffusion-xl-base-1.0"
     if model == "spright":
         model_id = "SPRIGHT-T2I/spright-t2i-sd2"
+    if model =="flux":
+        model_id="black-forest-labs/FLUX.1-schnell"
+    if model=="controlnet":
+        model_id="stabilityai/stable-diffusion-xl-base-1.0"
     return model, model_id
 
 
@@ -96,15 +100,26 @@ def stash_to_aux(module, args, kwargs, output, mode, key="last_feats", args_idx=
 
 
 def set_attention_processors(pipe, attn_greenlist, save_aux=False):
-    print("Setting attention processors save_aux =", save_aux)
+    #print("Setting attention processors save_aux =", save_aux)
 
     # attention processors on layers:
     # up_blocks.0.attentions.1.transformer_blocks.1.attn2
     # up_blocks.0.attentions.1.transformer_blocks.2.attn2
     # up_blocks.0.attentions.1.transformer_blocks.3.attn2
 
-    # attn_layers = []
-    for name, block in pipe.unet.named_modules():
+    # attn_layers = []# works for both UNet-based and FLUX-based pipelines
+    backbone = (
+        getattr(pipe, "transformer", None)
+        or pipe.components.get("transformer", None)
+        or getattr(pipe, "unet", None)
+    )
+    if backbone is None:
+        raise RuntimeError(f"No transformer/unet found. Components: {list(pipe.components.keys())}")
+
+
+    
+    cnt=0
+    for name, block in backbone.named_modules():#pipe.unet.
         if isinstance(block, (
                 diffusers.models.unets.unet_2d_blocks.CrossAttnDownBlock2D,
                 diffusers.models.unets.unet_2d_blocks.CrossAttnUpBlock2D,
@@ -124,6 +139,7 @@ def set_attention_processors(pipe, attn_greenlist, save_aux=False):
                 if isinstance(attn, diffusers.models.attention_processor.Attention):
                     if isinstance(attn.processor, diffusers.models.attention_processor.AttnProcessor2_0):
                         attn.processor = SelfGuidanceAttnProcessor2_0(save_aux=save_aux)
+                        
                     else:
                         raise NotImplementedError(
                             f"Self-guidance is not implemented for this attention processor: {attn.processor}")
