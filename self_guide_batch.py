@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from self_guidance import plot_attention_map
+from utils.vis_utils import plot_attention_map
 #import wandb
 
 

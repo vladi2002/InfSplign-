@@ -3,22 +3,21 @@ import diffusers
 import argparse
 import os
 import json
-import multiprocessing as mp
 
+from utils.plot_losses import plot_losses
 from self_guide_batch import Splign
-from split_data_multiprocessing import get_prompts_for_rank
 from models import SpatialLossSDPipeline, SpatialLossSDXLPipeline#,FluxSpatialPipeline , ControlNetSpatialPipeline
 #from diffusers import ControlNetModel, AutoencoderKL
 from utils.model_utils import set_attention_processors
 from utils.model_utils import get_model_id
+from utils.pipeline_utils import get_prompts_for_rank
 
 #import wandb
 import time
-import ploting
 
 #wandb.login()
 
-from config import HF_HOME, Sieger
+from utils.config import HF_HOME, Sieger
 os.environ["HF_HOME"] = HF_HOME
 
 if not Sieger:
@@ -46,7 +45,6 @@ def get_config():
     parser.add_argument("--top_loss", default="var")
     parser.add_argument("--top_strategy", default="dec")
 
-
     parser.add_argument("--plot", default=False , action="store_true")
     parser.add_argument("--no_train", default=False,action="store_true")
     parser.add_argument("--no_eval", default=False,action="store_true")
@@ -56,10 +54,6 @@ def get_config():
     parser.add_argument("--lambda_spatial", default=1.0)
     parser.add_argument("--lambda_presence", default=1.0)
     parser.add_argument("--lambda_balance", default=1.0)
-
-
-
-
 
     parser.add_argument("--self_guidance_mode", default=False)
     parser.add_argument("--two_objects", default=True)
@@ -163,7 +157,6 @@ def init_pipeline(device, model_information,schedule="ddpm", float32=False):
             controlnets =ControlNetModel.from_pretrained("diffusers/controlnet-canny-sdxl-1.0", torch_dtype=torch.float16,)#,]
             vae = AutoencoderKL.from_pretrained("madebyollin/sdxl-vae-fp16-fix", torch_dtype=torch.float16)
             pipe = ControlNetSpatialPipeline.from_pretrained(model_id, controlnet=controlnets, vae=vae, torch_dtype=torch.float16)"""
-
             
     pipe = pipe.to(device)
     if schedule =="ddpm":
@@ -196,10 +189,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
     with pipe.progress_bar(total=len(prompts)) as progress_bar:
         for batch_start in range(0, len(prompts), batch_size):
             batch_prompts = prompts[batch_start:batch_start + batch_size]
-            if verbose: print("batch_prompts", batch_prompts)   
-            # "a train below a car", "a bicycle above a person",  "a zebra to the right of a motorcycle", "a zebra above a motorcycle", "a fork above a tie"]:
-            # if batch_prompts[0] not in ["a cat below a tv"]: #, "a bicycle to the left of a dog", "a bicycle to the left of a suitcase"]:
-            #     continue  
+            if verbose: print("batch_prompts", batch_prompts)
             progress_bar.update(len(batch_prompts))
 
             if benchmark == "visor" or benchmark == "geneval":
@@ -267,12 +257,10 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                         ]
                     })
 
-                # print("run_base", run_base)
                 if run_base:
                     prompt = batch_prompts[0]
                     base_filenames = f"{prompt}_{model}_{i}.png"
                     base_out_filenames = os.path.join(save_path, base_filenames)
-                    # print(base_filenames, os.path.exists(base_out_filenames))
 
                     if os.path.exists(base_out_filenames):
                         continue
@@ -325,7 +313,7 @@ def run_on_gpu(device, all_prompts, all_words, attn_greenlist, seeds, num_infere
     pipe = init_pipeline(device, model_information, schedule=schedule, float32=float32)
     if verbose: print("Configuration: energy_loss=", energy_loss, "strategy=", strategy)
 
-    save_aux = False #changed this 
+    save_aux = False
     set_attention_processors(pipe, attn_greenlist, save_aux=save_aux)
 
     self_guidance(pipe, device, attn_greenlist, all_prompts, all_words, seeds, num_inference_steps,
@@ -479,9 +467,9 @@ def generate_images(config):
             "on the right of": [(1., 0.5), (0., 0.5)],
             "on the top of": [(0.5, 0), (0.5, 1)],
             "on the bottom of": [(0.5, 1), (0.5, 0)],
-            "on side of": [(0.2, 0.5), (0.8, 0.5)],  # left
-            "next to": [(0.8, 0.5), (0.2, 0.5)],  # right
-            "near": [(0.25, 0.5), (0.75, 0.5)]  # left
+            "on side of": [(0.2, 0.5), (0.8, 0.5)],
+            "next to": [(0.8, 0.5), (0.2, 0.5)],
+            "near": [(0.25, 0.5), (0.75, 0.5)]
         }
 
     elif benchmark == "visor":
@@ -492,7 +480,6 @@ def generate_images(config):
         for data in visor_data:
             prompt = data['text']
             all_prompts.append(prompt)
-            # all_words[prompt] = [data['obj_1_attributes'][0], data["obj_2_attributes"][0]]
 
             all_words[prompt] = [
                 data['obj_1_attributes'][0].split()[1] if len(data['obj_1_attributes'][0].split()) > 1 else data['obj_1_attributes'][0],
@@ -517,7 +504,6 @@ def generate_images(config):
         for data in geneval_data:
             prompt = data['prompt']
             all_prompts.append(prompt)
-            # all_words[prompt] = [data['objects'][0], data["objects"][1]]
             all_words[prompt] = [
                 data['objects'][0].split()[1] if len(data['objects'][0].split()) > 1 else data['objects'][0],
                 data["objects"][1].split()[1] if len(data["objects"][1].split()) > 1 else data["objects"][1]
@@ -608,14 +594,11 @@ def generate_images(config):
 
     else:
         pipe = init_pipeline(device, model_information, schedule=schedule, float32=float32)
-        #print("Components:", list(pipe.components["transformer"].named_modules()))
-        #if pipe.components.get("transformer", None) is not None:
-        #    pipe.unet=pipe.transformer
+
         if not run_base:
-            save_aux = False  # True
+            save_aux = False
             set_attention_processors(pipe, attn_greenlist, save_aux=save_aux)
 
-        # print("run_base", run_base)
         self_guidance(pipe, device, attn_greenlist, all_prompts, all_words, seeds, num_inference_steps, sg_t_start,
                       sg_t_end, sg_grad_wt,
                       sg_loss_rescale, L2_norm=L2_norm, shifts=shifts,
@@ -696,13 +679,13 @@ def run_sweep_experiments(config):
 
             if not config.no_train: generate_images(config)
             if not config.no_eval: run_evaluation(config, relationship=None)
-            if config.plot: ploting.plot_losses(img_id)
+            if config.plot: plot_losses(img_id)
 
             for energy_loss in ["var"]:#,"prob","entropy"]:#None,"log","var"]:#,"square","exp"]:#"avg"]:#["min","max","avg"]:#["max","min","sum","avg"]:
                 #energies =  ["lin","log","var","gibs", "square","exp", "mean"]
                 config.energy_loss=energy_loss
-                config.top_loss=top_loss
-                config.top_strategy= top_strategy
+                # config.top_loss=top_loss
+                # config.top_strategy= top_strategy
                 #strategy=["diff","dec","both","inc","second","","std"]
                 for strategy in ["diff"]:#"inc","dec","diff"""]:#,"var"
                     config.strategy=strategy
@@ -724,158 +707,10 @@ def run_sweep_experiments(config):
                         generate_images(config)
                     if config.plot:
                         if config.verbose: print("Ploting Losses")
-                        ploting.plot_losses(img_id)
+                        plot_losses(img_id)
                     if not config.no_eval:
                         if config.verbose: print("Evaluation")
                         run_evaluation(config, relationship=None)
-
-
-                    #time.sleep(10)                 
-                    
-def run_ablation_spatial_loss_intervention(config):
-    # start_list = [0, 25, 50, 100]
-    # end_list = [50, 100, 125, 250]
-    loss = config.loss_type
-    img_id = f"loss_{loss}_0_25"
-    config.img_id = img_id
-    generate_images(config)
-    
-    # for loss in ["relu", "gelu", "sigmoid"]: # 100 hours generation on t2i
-    # loss = config.loss_type
-    # slope = config.leaky_relu_slope
-    # loss_num = config.loss_num
-    # alpha = config.alpha
-    # num_attn_maps = config.num_attn_layers
-    # img_id = f"loss_{loss}_slope_{slope}_loss_num_{loss_num}_alpha_{alpha}_{num_attn_maps}_attn_maps_no_wt_ablation_132"
-    # config.img_id = img_id
-    # generate_images(config)
-    
-def run_ablation_energy_loss(config):
-    #for energy_loss in ["log","var","gibs"]:#,"square","exp"]:
-    #    config.energy_loss=energy_loss
-    #    config.strategy=energy_loss.strategy
-
-    img_id = f"{config.loss_type}_energy_{config.energy_loss}_strategy_{config.strategy}"
-    config.img_id = img_id
-    generate_images(config)
-    run_evaluation(config, relationship=None)
-
-def run_ablation_energy_strategy(config):
-    for energy_loss in ["inc","diff","dec"]:#,"square","exp"]:
-        config.strategy=energy_loss.strategy
-        img_id = f"{config.loss_type}_energy_{config.energy_loss}_strategy_{config.strategy}"
-        config.img_id = img_id
-        generate_images(config)
-        run_evaluation(config, relationship=None)
-    
-def run_ablation_loss_num(config):
-    for loss_num in [1, 2, 3]:
-        config.loss_num = loss_num
-        loss = config.loss_type
-        img_id = f"loss_{loss}_loss_num_{loss_num}_ablation_132"
-        config.img_id = img_id
-        generate_images(config)
-    
-    
-def run_ablation_object_presence(config):
-    loss = config.loss_type
-    loss_num = config.loss_num
-    alpha = config.alpha
-    img_id = f"loss_{loss}_loss_num_{loss_num}_alpha_{alpha}_object_presence_6maps_no_wt_ablation_132"
-    config.img_id = img_id
-    generate_images(config)
-
-
-def run_ablation_masked_mean(config):
-    loss = config.loss_type
-    loss_num = config.loss_num
-    alpha = config.alpha
-    img_id = f"loss_{loss}_loss_num_{loss_num}_alpha_{alpha}_masked_mean_6maps_no_wt_ablation_132"
-    config.img_id = img_id
-    generate_images(config)
-    
-    
-def run_ablation_energy(config):
-    loss = config.loss_type
-    loss_num = config.loss_num
-    alpha = config.alpha
-    img_id = f"loss_{loss}_loss_num_{loss_num}_alpha_{alpha}_energy_6maps_no_wt_ablation_132"
-    config.img_id = img_id
-    generate_images(config)
-        
-        
-def get_spatial_loss_stats(config):
-    for loss in ["relu", "gelu", "sigmoid"]:
-        config.loss_type = loss
-        img_id = f"{config.img_id}_{loss}"
-        config.img_id = img_id
-        generate_images(config)
-        
-        
-def run_ablation_alpha(config):
-    loss = config.loss_type
-    alpha = config.alpha
-    img_id = f"{loss}_alpha_{alpha}_ablation_20"
-    config.img_id = img_id
-    generate_images(config)
-    
-    
-def run_ablation_6attn_maps(config):
-    num_attn_maps = 6
-    loss = config.loss_type
-    loss_num = config.loss_num
-    alpha = config.alpha
-    img_id = f"loss_{loss}_loss_num_{loss_num}_alpha_{alpha}_{num_attn_maps}_attn_maps_no_wt_ablation_132"
-    config.img_id = img_id
-    generate_images(config)
-    
-    # for loss in ["sigmoid"]: # ["relu", "gelu"]:
-    #     config.loss_type = loss
-    #     for loss_num in [1, 2, 3]:
-    #         config.loss_num = loss_num
-    #         for alpha in [1.0, 2.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]: # [0.1, 0.25, 0.5, 0.75, 1.0, 2.0]:
-    #             config.alpha = alpha
-    #             img_id = f"loss_{loss}_loss_num_{loss_num}_alpha_{alpha}_{num_attn_maps}_attn_maps_no_wt_ablation_132"
-    #             config.img_id = img_id
-    #             generate_images(config)
-    
-    
-def run_ablation_leaky_relu_attn_maps(config):
-    loss = config.loss_type
-    loss_num = config.loss_num
-    alpha = config.alpha
-    num_attn_maps = config.num_attn_layers
-    slope = config.leaky_relu_slope
-    img_id = f"loss_{loss}_slope_{slope}_loss_num_{loss_num}_alpha_{alpha}_{num_attn_maps}_attn_maps_no_wt_ablation_132"
-    config.img_id = img_id
-    generate_images(config)
-    
-    # loss = "leaky_relu"
-    # config.loss_type = loss    
-    # num_attn_maps = 6
-    # for loss_num in [1, 2, 3]:
-    #     config.loss_num = loss_num
-    #     for slope in [0.05, 0.1, 0.25, 0.5]:
-    #         config.leaky_relu_slope = slope
-    #         for alpha in [0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 5.0]:
-    #             print("slope", slope, "loss_num", loss_num, "alpha", alpha)
-    #             if slope == 0.25 and loss_num == 1 and alpha == 0.1:
-    #                 continue
-    #             config.alpha = alpha
-    #             img_id = f"loss_{loss}_slope_{slope}_loss_num_{loss_num}_alpha_{alpha}_{num_attn_maps}_attn_maps_no_wt_ablation_132"
-    #             config.img_id = img_id
-    #             generate_images(config)
-
-
-def run_ablation_margin(config):
-    num_attn_maps = 6
-    margin = config.margin
-    loss = config.loss_type
-    loss_num = config.loss_num
-    alpha = config.alpha        
-    img_id = f"{loss}_margin_{margin}_loss_num_{loss_num}_alpha_{alpha}_{num_attn_maps}_attn_maps_no_wt_ablation_132"
-    config.img_id = img_id
-    generate_images(config)
 
 
 if __name__ == "__main__":

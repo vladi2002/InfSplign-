@@ -116,9 +116,6 @@ def set_attention_processors(pipe, attn_greenlist, save_aux=False):
     if backbone is None:
         raise RuntimeError(f"No transformer/unet found. Components: {list(pipe.components.keys())}")
 
-
-    
-    cnt=0
     for name, block in backbone.named_modules():#pipe.unet.
         if isinstance(block, (
                 diffusers.models.unets.unet_2d_blocks.CrossAttnDownBlock2D,
@@ -143,20 +140,6 @@ def set_attention_processors(pipe, attn_greenlist, save_aux=False):
                     else:
                         raise NotImplementedError(
                             f"Self-guidance is not implemented for this attention processor: {attn.processor}")
-
-    # # save the values in a file each layer on a new license
-    # with open("attn_layers.txt", "w") as f:
-    #     for layer in attn_layers:
-    #         f.write(layer + "\n")
-
-    ### !!!!!!!!!!!!!!!!!!!
-    # TODO: this is important to preserve the appearance but we are not doing it right now because we are not calling the functions that require it
-    # pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="kwargs", save_aux=save_aux, kwargs_key="hidden_states"), with_kwargs=True)
-    # pipe.unet.up_blocks[2].register_forward_hook(partial(stash_to_aux, mode="output", save_aux=save_aux),
-    #                                              with_kwargs=True)
-
-    # base.unet.up_blocks[1].resnets[1].conv2.register_forward_hook(partial(stash_to_aux,mode="args", args_idx=0), with_kwargs=True)
-    # pipe.unet.up_blocks[0].attentions[1].transformer_blocks[3].attn2.register_forward_hook(resave_aux_key)
 
 
 def setup_logger(filename):

@@ -1,5 +1,7 @@
 import json
 import os
+
+import numpy as np
 import torch
 from glob import glob
 from PIL import Image, ImageDraw
@@ -13,6 +15,44 @@ def get_prompts_ann_from_json(json_name):
     with open(os.path.join('json_files', f'{json_name}.json'), 'r') as f:
         json_file = json.load(f)
     return json_file
+
+
+# def split_prompts(num_gpus, benchmark, json_filename):
+#     with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
+#         spatial_prompts = json.load(f)
+
+#     print(f"Total number of unique spatial prompts: {len(spatial_prompts)}")
+
+#     save_dir = os.path.join('data_splits', f'{benchmark}', f"multiprocessing_{num_gpus}")
+#     os.makedirs(save_dir, exist_ok=True)
+
+#     chunk_size = len(spatial_prompts) // num_gpus
+#     remainder = len(spatial_prompts) % num_gpus
+#     print(chunk_size, remainder)
+
+#     start = 0
+#     for i in range(num_gpus):
+#         end = start + chunk_size + (1 if i < remainder else 0)
+#         print(i, start, end)
+#         part = spatial_prompts[start:end]
+
+#         with open(os.path.join(save_dir, f"prompts_part_{i}.json"), 'w') as f:
+#             json.dump(part, f, indent=2)
+
+#         print(f"Saved {len(part)} items to prompts_part_{i}.json")
+#         start = end
+
+
+def get_prompts_for_rank(size, rank, json_filename):
+    with open(os.path.join('json_files', f'{json_filename}.json'), 'r') as f:
+        spatial_prompts = np.array(json.load(f))
+
+    print("len: ", spatial_prompts.shape)
+
+    # Split prompts across size and select portion for rank
+    data_chunks = np.array_split(spatial_prompts, size)
+    rank_prompts = data_chunks[rank]
+    return rank_prompts
 
 
 def initialize_model(config, model):
@@ -85,27 +125,20 @@ def create_object_detection_annotations(config, prompts_data, processor, model, 
     baseline = config.model
     json_filename = config.json_filename
     
-    # with open(f'objdet_results/{baseline}/{json_filename}.json', 'w') as f:
-    #     json_file = json.load(f)
-    
     for item in tqdm(prompts_data):
         if item == 4:
             break
         uniq_id = item["text"]
         
-        # if relationship not in uniq_id:
-        #     continue
-        
         images = []
-        for i in range(4):  # change depending on the use case range(1, 51)
+        for i in range(4):
             img_id = "{}_{}".format(uniq_id, i)
             if relationship:
                 impath = os.path.join("images", "visor", baseline, relationship, "{}.png".format(img_id))
-                # print(relationship, impath)
             else:
                 impath = os.path.join("images", "visor", f"{baseline}_{model_type}", "{}.png".format(img_id))
                 
-            # not all images are generated yet !!!!!!!!!
+            # not all images are generated yet
             if not os.path.exists(impath):
                 print("Could not find {}".format(impath))
                 continue
@@ -113,7 +146,7 @@ def create_object_detection_annotations(config, prompts_data, processor, model, 
             im = Image.open(impath)
             images.append(im)
 
-        # not all images are generated yet !!!!!!!!!
+        # not all images are generated yet
         if not os.path.exists(impath):
             continue
 
@@ -122,7 +155,7 @@ def create_object_detection_annotations(config, prompts_data, processor, model, 
         rel = item["rel_type"]
         texts = [["a photo of a {}".format(obj1), "a photo of a {}".format(obj2)]]
 
-        for i in range(4):  # change depending on the use case range(50)
+        for i in range(4):
             image = images[i]
             img_id = "{}_{}".format(uniq_id, i)  # i+1
             with torch.no_grad():
@@ -138,21 +171,14 @@ def create_object_detection_annotations(config, prompts_data, processor, model, 
                 image_with_boxes.save(f"images/{baseline}/{json_filename}/bbox/{img_id}.png")
         items += 1
 
-    # REWROTE
     save_dir = os.path.join('objdet_results', 'visor', f"{baseline}_{model_type}")
     os.makedirs(save_dir, exist_ok=True)
-    
-    # if relationship:
-    #     with open(os.path.join('objdet_results', 'visor', baseline, relationship, f'{json_filename}.json'), 'w') as f:
-    #         json.dump(results, f, indent=4)
-    # else:
     
     with open(os.path.join(save_dir, f'{json_filename}.json'), 'w') as f:
         json.dump(results, f, indent=4)
 
 
 def load_object_detection_ann(config, relationship=None):
-    # REWROTE
     model = f"{config.model}_{config.img_id}"
     json_file = config.json_filename
     
@@ -163,7 +189,5 @@ def load_object_detection_ann(config, relationship=None):
     else:
         with open(os.path.join(save_dir, f'{json_file}.json'), 'r') as f:
             obj_det_annotations = json.load(f)
-            
-    # new_obj_det_annotations = {key: data for key, data in obj_det_annotations.items() if not " and " in data["text"]}
-    
+
     return obj_det_annotations

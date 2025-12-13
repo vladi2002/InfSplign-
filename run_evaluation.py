@@ -49,9 +49,9 @@ def run_t2i_evaluation_sweep(config, relationship=None):
         img_id = f"sdxl_sp_loss_{loss}_end_125_num_steps_500"
         config.img_id = img_id
         t2i_spatial_score(config, relationship=relationship)
-        
-# TODO: changed based on the naming conventions of the current runs
-def run_visor_evaluation_sweep(config, relationship=None):     
+
+
+def run_visor_evaluation_sweep(config, relationship=None):
     loss_config = config.loss_type
     if loss_config == "relu":
         for loss in ["relu", "gelu"]:

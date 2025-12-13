@@ -12,9 +12,8 @@ from diffusers.schedulers.scheduling_ddpm import DDPMSchedulerOutput
 BIGPIPES=False
 if BIGPIPES:
     #from diffusers import FluxPipeline
-    from clip_model import ClipTextScorer
+    from utils.clip_model import ClipTextScorer
 from utils.model_utils import search_sequence_numpy, setup_logger
-from torchvision.utils import save_image
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -366,7 +365,6 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
                     added_cond_kwargs=added_cond_kwargs,
                     return_dict=False,
                 )[0]  # here it's running the attention processor and saving the attn maps
-                # print(noise_pred.shape) # torch.Size([2, 4, 128, 128]) -> 2 for cond+uncond terms
 
                 # perform guidance
                 if do_classifier_free_guidance:
@@ -431,9 +429,8 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
                                     if no_wt:
                                         spatial_loss_b += edit_loss1
                                     else:
-                                        spatial_loss_b += wt *  edit_loss1
+                                        spatial_loss_b += wt * edit_loss1
 
-                            # right now there is just one edit dictionary!!!
                         spatial_losses.append(spatial_loss_b)
 
                     if use_clip_loss:
@@ -459,7 +456,6 @@ class SpatialLossSDXLPipeline(StableDiffusionXLPipeline):
 
                     assert not noise_pred.isnan().any()
                 latents.detach()
-                ### END SELF GUIDANCE
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
 
@@ -640,13 +636,10 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                             idxs = []
                             for word in words:
                                 word_ids = self.tokenizer(word, return_tensors='np')['input_ids']
-                                # print(word, len(word_ids))
                                 word_ids = word_ids[word_ids < 49406]
                                 ids = search_sequence_numpy(prompt_text_ids, word_ids)
-                                # print(word, ids)
                                 idxs.append(ids)
                             edit['idxs'] = np.concatenate(idxs)
-                            # print(words, edit['idxs'])
 
         # 3. Encode input prompt
         prompt_embeds = self._encode_prompt(
@@ -736,7 +729,6 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                     noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
-                ### SELF GUIDANCE
                 if do_self_guidance and (sg_t_start <= i < sg_t_end or i + 1 in self_guidance_alternate_steps):
                     sg_aux = self.get_sg_aux(do_classifier_free_guidance)  # here it's extracting the cond term
                     spatial_losses = []
@@ -799,7 +791,6 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                                     else:
                                         spatial_loss_b += wt *  edit_loss1
 
-                            # right now there is just one edit dictionary!!!
                         spatial_losses.append(spatial_loss_b)
 
                     if use_clip_loss:
@@ -819,14 +810,9 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                     spatial_losses_batch = torch.stack(spatial_losses)
                     spatial_grad = torch.autograd.grad(spatial_losses_batch, latents,
                                                         grad_outputs=torch.ones_like(spatial_losses_batch),
-                                                        retain_graph=True)[0]  # no underflow / sg_loss_rescale
-                    # # checking the first sample -> [0]
-                    # idx = torch.argmin(noise_pred[0])
-                    # print("grad at idx", spatial_grad[0].flatten()[idx].item())
-                    # print("before", noise_pred[0].flatten()[idx].item())
-                    # noise_pred_before = noise_pred.clone()
+                                                        retain_graph=True)[0]
 
-                    if logger is not None: # noise_pred min: {noise_pred.min().item()}, noise_pred mean: {noise_pred.mean().item()}, noise_pred max: {noise_pred.max().item()}
+                    if logger is not None:
                         logger.info(
                             f"Timestep {i}, grad min: {sg_grad_wt * spatial_grad.min().item()}, grad mean: {sg_grad_wt * spatial_grad.mean().item()}, grad max: {sg_grad_wt * spatial_grad.max().item()}")
 
@@ -834,26 +820,9 @@ class SpatialLossSDPipeline(StableDiffusionPipeline):
                         noise_pred = noise_pred + sg_grad_wt * spatial_grad + clip_weight * clip_grad
                     else:
                         noise_pred = noise_pred + sg_grad_wt * spatial_grad
-                    # noise_pred_after = noise_pred
-                    # expected = noise_pred_before + sg_grad_wt * spatial_grad
-                    # print("max error", (expected - noise_pred_after).abs().max().item())
-
-                    # for b in range(batch_size):
-                    #     expected_b = noise_pred_before[b] + sg_grad_wt * spatial_grad[b]
-                    #     actual_b = noise_pred_after[b]
-                    #     error = (expected_b - actual_b).abs().max().item()
-                    #     print(f"[Sample {b}] max error: {error}")
-
-                    # print("after", noise_pred[0].flatten()[idx].item())
-
-                    # if grad_norm_scale:
-                    #     correction = noise_pred_text - noise_pred_uncond
-                    #     target_guidance = set_scale(sg_grad, correction, target_guidance, guidance_scale)
-                    #     weighted_spatial_grad = target_guidance * sg_grad
 
                     assert not noise_pred.isnan().any()
                 latents.detach()
-                ### END SELF GUIDANCE
 
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(noise_pred, t, latents, generator).prev_sample # , generator=generator#**extra_step_kwargs
