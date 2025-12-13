@@ -10,3 +10,7 @@ fastcore
 ipython
 spacy
 scikit-image
+# use conda-forge
+einops
+accelerate
+scikit-learn
