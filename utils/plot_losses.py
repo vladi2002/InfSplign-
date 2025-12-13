@@ -944,7 +944,7 @@ def plot_losses(name):
 
 
 if __name__ == "__main__":
-    with open(os.path.join("../json_files", "visor_ablation_20.json"), "r") as f:
+    with open(os.path.join("../json_files", "visor_subset_20.json"), "r") as f:
         visor_data = json.load(f)
 
     visor_prompts = []

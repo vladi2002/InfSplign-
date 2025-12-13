@@ -5,7 +5,7 @@ import os
 import json
 
 from utils.plot_losses import plot_losses
-from self_guide_batch import Splign
+from self_guide_batch import InfSplign
 from models import SpatialLossSDPipeline, SpatialLossSDXLPipeline#,FluxSpatialPipeline , ControlNetSpatialPipeline
 #from diffusers import ControlNetModel, AutoencoderKL
 from utils.model_utils import set_attention_processors
@@ -243,7 +243,7 @@ def self_guidance(pipe, device, attn_greenlist, prompts, all_words, seeds, num_i
                         'attn': [
                             {
                                 'words': batched_words[j],
-                                'fn': Splign.centroid,
+                                'fn': InfSplign.centroid,
                                 'function': "centroid",
                                 'spatial': batched_relationships[j],
                                 'alpha': alpha,

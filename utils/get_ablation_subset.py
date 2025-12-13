@@ -127,7 +127,7 @@ def get_balanced_entries(target_count=500):
 balanced_entries = get_balanced_entries()
 
 # # Save to JSON file
-# output_file = os.path.join('json_files', 'visor_ablation_500.json')
+# output_file = os.path.join('json_files', 'visor_subset_500.json')
 # with open(output_file, 'w') as f:
 #     json.dump(balanced_entries, f, indent=4)
 
