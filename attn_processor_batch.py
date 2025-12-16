@@ -1,11 +1,11 @@
 import math
-import torch
 import diffusers
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 
+
 class SelfGuidanceAttnProcessor2_0:
-    r"""
+    """
     Processor for implementing scaled dot-product attention (enabled by default if you're using PyTorch 2.0).
     """
 
@@ -66,22 +66,19 @@ class SelfGuidanceAttnProcessor2_0:
         if _SG_RES != scores_.shape[2]:
             scores_ = TF.resize(scores_.permute(0, 3, 1, 2), _SG_RES, antialias=True).permute(0, 2, 3, 1)
         try:
-            # print("AttnProcessor call", self.save_aux) # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            if not self.save_aux: # save_aux = False
-                # print("TRY")
+            if not self.save_aux:
                 len_ = len(attn._aux['attn'])
                 del attn._aux['attn']
                 attn._aux['attn'] = [None] * len_ + [scores_]
-            else: # save_aux = True
+            else:
                 attn._aux['attn'][-1] = attn._aux['attn'][-1].cpu()
                 attn._aux['attn'].append(scores_)
         except:
-            # print("EXCEPT STATEMENT") # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             try:
                 del attn._aux['attn']
             except:
                 pass
-            attn._aux = {'attn': [scores_]} # THIS IS IMPORTANT
+            attn._aux = {'attn': [scores_]}
         ### END SELF GUIDANCE
 
         inner_dim = key.shape[-1]

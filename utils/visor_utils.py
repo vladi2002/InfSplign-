@@ -50,13 +50,11 @@ def get_visor_spatial(results, text_data):
 
     for img_id, rr in results.items():
         uniq_id = img_id.split("_")[0]
-        # had to change this line item["unique_id"] to item["text"] !!!!!!!!!!!!!!
         ann = [item for item in text_data if item["text"] == uniq_id][0]
         obj1 = ann["obj_1_attributes"][0]
         obj2 = ann["obj_2_attributes"][0]
         rel = ann["rel_type"]
         N = ann["num_objects"]
-        recall = rr["recall"] / N
 
         if rel == "and" or N != 2:
             continue

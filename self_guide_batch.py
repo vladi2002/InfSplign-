@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from self_guidance import plot_attention_map
+from utils.vis_utils import plot_attention_map
 #import wandb
 
 
@@ -84,7 +84,7 @@ class GaussianSmoothing(nn.Module):
         return self.conv(input, weight=self.weight.to(input.dtype), groups=self.groups)
 
 
-class Splign:
+class InfSplign:
     @staticmethod
     def _centroid_sg(a):
         # print("attn shape _centroid: ", a.shape) # [1, 64, 64, 1]
@@ -336,10 +336,10 @@ class Splign:
                 #P_2=torch.log(π_2)-torch.log(2*torch.pi *variance)-var/(variance*2)
 
                 if centroid_type == "sg":
-                    obs_centroid = Splign._centroid_sg(combined_attn_map)
+                    obs_centroid = InfSplign._centroid_sg(combined_attn_map)
                     obs_centroid = obs_centroid.mean(1, keepdim=True)
                 elif centroid_type == "mean":
-                    obs_centroid,obj_energy,obj_vol,obj_var,obj_ent = Splign._centroid(combined_attn_map,normalized_attn_map, smoothing=smoothing, energy_loss=energy_loss)
+                    obs_centroid,obj_energy,obj_vol,obj_var,obj_ent = InfSplign._centroid(combined_attn_map, normalized_attn_map, smoothing=smoothing, energy_loss=energy_loss)
 
                 
                 centroids.append(obs_centroid)
@@ -418,14 +418,14 @@ class Splign:
 
 
             elif strategy=="std":
-                Energy_Loss=(Splign.compute_loss(L2,energies[0], (energies[0]+energies[1])/2))+Splign.compute_loss(L2,energies[1], (energies[0]+energies[1])/2)
+                Energy_Loss= (InfSplign.compute_loss(L2, energies[0], (energies[0] + energies[1]) / 2)) + InfSplign.compute_loss(L2, energies[1], (energies[0] + energies[1]) / 2)
                 #losses.append(Energy_Loss)
                 #losses.append((Splign.compute_loss(L2,energies[0], (energies[0]+energies[1])/2))+Splign.compute_loss(L2,energies[1], (energies[0]+energies[1])/2))
                 #losses.append((Splign.compute_loss(L2,volumes[0], (volumes[0]+volumes[1])/2))+Splign.compute_loss(L2,volumes[1], (volumes[0]+volumes[1])/2))
                 #losses.append((Splign.compute_loss(L2,rho[0], (rho[0]+rho[1])/2))+Splign.compute_loss(L2,rho[1], (rho[0]+rho[1])/2))
 
             elif strategy=="second":
-                Energy_Loss=-Splign.compute_loss(L2,energies[1], 0)
+                Energy_Loss=-InfSplign.compute_loss(L2, energies[1], 0)
                 #losses.append(Energy_Loss)
                 #losses.append(-Splign.compute_loss(L2,volumes[1], 0))
                 #losses.append(-Splign.compute_loss(L2,rho[1], 0))
@@ -450,8 +450,8 @@ class Splign:
                 #losses.append(-Splign.compute_loss(L2,0, (rho[0]))-Splign.compute_loss(L2,0, (rho[1])))
                 #losses.append(Splign.compute_loss(L2,variances[0],variances[1]))
             elif strategy=="entgibs":
-                dec_loss=Splign.compute_loss(L2,0, (variances[0]))+Splign.compute_loss(L2,0, (variances[1]))
-                diff_loss=Splign.compute_loss(L2,energies[0],energies[1])
+                dec_loss= InfSplign.compute_loss(L2, 0, (variances[0])) + InfSplign.compute_loss(L2, 0, (variances[1]))
+                diff_loss=InfSplign.compute_loss(L2, energies[0], energies[1])
                 #print(diff_loss/dec_loss)
                 Energy_Loss=dec_loss+diff_loss
             elif strategy=="mutual":
@@ -481,10 +481,10 @@ class Splign:
                 if loss_type is None:
                     spatial_loss=0
                 else:
-                    spatial_loss = Splign.spatial_loss(centroids, relationship, loss_type,
-                                                    loss_num, alpha=alpha, margin=margin,
-                                                    logger=logger, object_presence=object_presence, 
-                                                    leaky_relu_slope=leaky_relu_slope,variances=variances)
+                    spatial_loss = InfSplign.spatial_loss(centroids, relationship, loss_type,
+                                                          loss_num, alpha=alpha, margin=margin,
+                                                          logger=logger, object_presence=object_presence,
+                                                          leaky_relu_slope=leaky_relu_slope, variances=variances)
                 #if use_energy:
                 #    ###
                 #    energy_loss = Splign.compute_loss(L2, energies[0], energies[1])
@@ -527,11 +527,11 @@ class Splign:
 
         else:
             shift = torch.tensor(shifts[0]).to(attn.device)
-            obs_centroid = Splign._centroid(attn)
+            obs_centroid = InfSplign._centroid(attn)
 
             tgt_centroid = shift.reshape((1,) * (obs_centroid.ndim - shift.ndim) + shift.shape)
 
-            loss = Splign.compute_loss(L2, obs_centroid, tgt_centroid)
+            loss = InfSplign.compute_loss(L2, obs_centroid, tgt_centroid)
             losses.append(loss)
 
         torch.cuda.empty_cache()
